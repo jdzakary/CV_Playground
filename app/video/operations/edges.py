@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from app.video.processing import Operation, Slider
+from app.video.processing import Operation, Slider, Boolean
 
 
 class CannyEdges(Operation):
@@ -12,10 +12,12 @@ class CannyEdges(Operation):
         super().__init__()
         self.__thresh_1 = Slider(50, 200, 10)
         self.__thresh_2 = Slider(200, 300, 10)
+        self.__show_frames = Boolean('Show Frames', 'Only Edges')
         self.thresh_1.slider.valueChanged.connect(self.adjust_min)
         self.thresh_2.slider.valueChanged.connect(self.adjust_max)
         self.params.append(self.__thresh_1)
         self.params.append(self.__thresh_2)
+        self.params.append(self.show_frames)
 
     @property
     def thresh_1(self) -> Slider:
@@ -24,6 +26,10 @@ class CannyEdges(Operation):
     @property
     def thresh_2(self) -> Slider:
         return self.__thresh_2
+
+    @property
+    def show_frames(self) -> Boolean:
+        return self.__show_frames
 
     def adjust_min(self, value: int) -> None:
         self.thresh_2.minimum = value
@@ -34,4 +40,7 @@ class CannyEdges(Operation):
     def execute(self, frame: np.ndarray) -> np.ndarray:
         edges = cv2.Canny(frame, self.thresh_1.number, self.thresh_2.number)
         edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
-        return cv2.add(frame, edges)
+        if self.show_frames.status:
+            return cv2.add(frame, edges)
+        else:
+            return edges

@@ -4,8 +4,9 @@ from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QLabel
 
+from app.config import setting
 from app.general.enums import LabelLevel
 from app.general.text import Label
 
@@ -108,12 +109,15 @@ class Slider(Parameter):
         self.slider.valueChanged.connect(self.__change_slider)
         self.slider.setOrientation(Qt.Horizontal)
 
-        self.__number = minimum
+        self.__number = Label(f'{minimum}', LabelLevel.P)
         self.__component = QWidget(None)
         self.__minimum = Label(f'{minimum}', LabelLevel.P)
         self.__maximum = Label(f'{maximum}', LabelLevel.P)
 
         l1 = QHBoxLayout()
+        l1.addWidget(Label('Current Value:', LabelLevel.P))
+        l1.addWidget(self.__number)
+        l1.addSpacing(35)
         l1.addWidget(self.minimum)
         l1.addWidget(self.slider)
         l1.addWidget(self.maximum)
@@ -137,11 +141,11 @@ class Slider(Parameter):
         The value of the parameter
         :return:
         """
-        return self.__number
+        return int(self.__number.text())
 
     @number.setter
     def number(self, value: int):
-        self.__number = value
+        self.__number.setText(f'{value}')
 
     @property
     def minimum(self) -> Label:
@@ -198,3 +202,44 @@ class Slider(Parameter):
         :return:
         """
         self.number = value
+
+
+class Boolean(Parameter):
+    def __init__(self, label_true: str, label_false: str):
+        self.__component = QWidget(None)
+        self.__button_true = QRadioButton(label_true)
+        self.__button_false = QRadioButton(label_false)
+        self.__button_true.clicked.connect(self.__change_button)
+        self.__button_false.clicked.connect(self.__change_button)
+        self.__status = False
+        self.status = False
+
+        l1 = QHBoxLayout()
+        l1.addWidget(self.__button_true)
+        l1.addWidget(self.__button_false)
+        self.component.setLayout(l1)
+
+        setting.add_font_callback(self.adjust_fonts)
+        self.adjust_fonts()
+
+    @property
+    def component(self) -> QWidget:
+        return self.__component
+
+    @property
+    def status(self) -> bool:
+        return self.__status
+
+    @status.setter
+    def status(self, value: bool) -> None:
+        self.__status = value
+        self.__button_false.setChecked(not value)
+        self.__button_true.setChecked(value)
+
+    def __change_button(self):
+        self.status = not self.status
+
+    def adjust_fonts(self) -> None:
+        font = setting.fonts[LabelLevel.P].generate_q()
+        self.__button_false.setFont(font)
+        self.__button_true.setFont(font)
