@@ -1,0 +1,24 @@
+{
+  "fonts": {
+    "Heading 1": {
+      "point_size": 22,
+      "family": "Times New Roman"
+    },
+    "Heading 2": {
+      "point_size": 18,
+      "family": "Times New Roman"
+    },
+    "Heading 3": {
+      "point_size": 16,
+      "family": "Times New Roman"
+    },
+    "Heading 4": {
+      "point_size": 13,
+      "family": "Times New Roman"
+    },
+    "Paragraph": {
+      "point_size": 12,
+      "family": "Times New Roman"
+    }
+  }
+}
