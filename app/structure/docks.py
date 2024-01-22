@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt, QModelIndex
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
-    QTabBar, QVBoxLayout, QListWidget,
+    QTabBar, QVBoxLayout,
     QAbstractItemView, QComboBox, QPushButton, QCompleter
 )
 
