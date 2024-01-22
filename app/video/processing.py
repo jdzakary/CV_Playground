@@ -70,18 +70,35 @@ class Operation(ABC):
 
     @property
     def params(self) -> list[Parameter]:
+        """
+        Optional parameters that are presented to the GUI
+        :return:
+        """
         return self.__params
 
 
 class Parameter(ABC):
+    """
+    Abstract class for parameters of CV Algorithm.
+    Must provide a component that is rendered in the tool window.
+    Intended to be very flexible
+    """
 
     @property
     @abstractmethod
     def component(self) -> QWidget:
+        """
+        The Component to be rendered in the tool window
+        :return: A pyqt Widget
+        """
         pass
 
 
 class Slider(Parameter):
+    """
+    A numeric variable that can be adjusted using a slider.
+    Qt Sliders can only use integer values. If
+    """
     def __init__(self, minimum: int, maximum: int, step: int = 1):
         self.__slider = QSlider()
         self.slider.setRange(minimum, maximum)
@@ -108,10 +125,18 @@ class Slider(Parameter):
 
     @property
     def slider(self) -> QSlider:
+        """
+        Refernce to the slider object
+        :return:
+        """
         return self.__slider
 
     @property
     def number(self) -> int:
+        """
+        The value of the parameter
+        :return:
+        """
         return self.__number
 
     @number.setter
@@ -120,10 +145,21 @@ class Slider(Parameter):
 
     @property
     def minimum(self) -> Label:
+        """
+        The label object that communicates the minimum
+        :return:
+        """
         return self.__minimum
 
     @minimum.setter
     def minimum(self, value: int):
+        """
+        Changes the minimum value.
+        This involves changing the label text, setting the slider min,
+        and possibly changing the slider value.
+        :param value:
+        :return:
+        """
         if int(self.maximum.text()) <= value:
             raise Exception('Minimum cannot exceed maximum!')
         if self.__slider.value() <= value:
@@ -133,10 +169,21 @@ class Slider(Parameter):
 
     @property
     def maximum(self):
+        """
+        The label object that communicates the maximum
+        :return:
+        """
         return self.__maximum
 
     @maximum.setter
     def maximum(self, value):
+        """
+        Changes the maximum value.
+        This involves changing the label text, setting slider max,
+        and possible updating the slider value.
+        :param value:
+        :return:
+        """
         if int(self.minimum.text()) >= value:
             raise Exception('Maximum cannot be lower than minimum!')
         if self.__slider.value() >= value:
@@ -145,4 +192,9 @@ class Slider(Parameter):
         self.__maximum.setText(f'{value}')
 
     def __change_slider(self, value: int):
+        """
+        Callback connected to the slider.valueChanged slot
+        :param value:
+        :return:
+        """
         self.number = value

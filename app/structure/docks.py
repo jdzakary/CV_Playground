@@ -14,6 +14,10 @@ from app.video.operations import OPP_MAP
 
 
 class ManageOperators(QDockWidget):
+    """
+    Dockable tool window for managing the real-time cv operations
+    applied to the video stream.
+    """
     def __init__(self, parent):
         super().__init__("Manage Video Operators", parent)
 

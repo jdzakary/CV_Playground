@@ -9,11 +9,18 @@ from app.general.text import Label
 
 
 class Settings(QWidget):
+    """
+    Main widget for the settings tab
+    """
     def __init__(self, parent):
         super().__init__(parent=parent)
         self.__setup()
 
     def __fonts(self) -> QGridLayout:
+        """
+        Settings related to text font and style
+        :return:
+        """
         layout = QGridLayout()
         for i, level in enumerate(LabelLevel):
             # Font Size Selector
@@ -31,6 +38,10 @@ class Settings(QWidget):
         return layout
 
     def __setup(self):
+        """
+        Overall widget setup
+        :return:
+        """
         layout = QVBoxLayout()
         layout.addWidget(Label('Adjust Text:', LabelLevel.H1))
         layout.addLayout(self.__fonts())
@@ -39,4 +50,10 @@ class Settings(QWidget):
 
     @staticmethod
     def change_font_size(level: LabelLevel, value: int):
+        """
+        Callback for changing font size
+        :param level:
+        :param value:
+        :return:
+        """
         setting.fonts[level].point_size = value

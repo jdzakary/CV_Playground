@@ -7,6 +7,9 @@ from app.video.stream import StreamWidget
 
 
 class CentralWidget(QTabWidget):
+    """
+    The central widget bound to the main window
+    """
     def __init__(self, parent: QMainWindow):
         super().__init__(parent=parent)
 
@@ -23,13 +26,25 @@ class CentralWidget(QTabWidget):
 
     @property
     def stream(self) -> StreamWidget:
+        """
+        Reference to the stream page
+        :return:
+        """
         return self.__stream
 
     @property
     def settings(self) -> Settings:
+        """
+        Reference to settings page
+        :return:
+        """
         return self.__settings
 
     def change_tab_font(self) -> None:
+        """
+        Callback to change the font of each tab label
+        :return:
+        """
         font = setting.fonts[LabelLevel.H4].generate_q()
         bar: QTabBar = self.tabBar()
         bar.setFont(font)
