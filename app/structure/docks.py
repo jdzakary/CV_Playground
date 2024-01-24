@@ -29,6 +29,8 @@ class ManageOperators(QDockWidget):
 
         self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
         self.__content = self.__create_content()
+        self.update_fonts()
+        # setting.add_font_callback(self.update_fonts)
         self.setWidget(self.content)
 
     @property
@@ -139,3 +141,11 @@ class ManageOperators(QDockWidget):
         tab = self.__tabs.widget(1)
         QWidget(None).setLayout(tab.layout())
         tab.setLayout(l1)
+
+    def update_fonts(self) -> None:
+        p = setting.fonts[LabelLevel.P].generate_q()
+        try:
+            self.select_opp.setFont(p)
+            self.__view_opp.setFont(p)
+        except RuntimeError:
+            setting.remove_font_callback(self.update_fonts)

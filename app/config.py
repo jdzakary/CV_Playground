@@ -102,6 +102,9 @@ class Settings:
         """
         self.__font_callbacks.append(callback)
 
+    def remove_font_callback(self, callback: Callable) -> None:
+        self.__font_callbacks.remove(callback)
+
     def update_font(self):
         """
         Execute callbacks when the user changes a font setting
