@@ -99,13 +99,24 @@ class ManageOperators(QDockWidget):
 
         return widget
 
-    def __order_changed(self, index: QModelIndex):
-        print(index)
+    def __order_changed(
+        self,
+        idx1: QModelIndex,
+        row_start: int,
+        row_end: int,
+        idx2: QModelIndex,
+        row_dest: int
+    ):
+        moved = self.operations.pop(row_start)
+        if row_dest == 0:
+            self.operations.insert(0, moved)
+        else:
+            self.operations.insert(row_dest - 1, moved)
+        self.__update_operations()
 
     def __add_opp(self):
         idx = self.select_opp.currentIndex()
         name = self.select_opp.itemText(idx)
-        print(idx, name)
         self.__view_opp.addItem(name)
         self.operations.append(OPP_MAP[name]())
         self.__update_operations()

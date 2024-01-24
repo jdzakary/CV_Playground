@@ -27,7 +27,6 @@ To suggest a new feature or request prioritization of a specific feature, please
 * Add multiprocessing support, allowing multiple frames to be processed simultaneously using a thread pool.
 * Add metrics to track latency and framerate
 * Improve the operation management tool window:
-  * Allow the user to re-arrange order of operators by drag-and-drop
   * Make text resizable
   * View the time per frame for each operation
 
