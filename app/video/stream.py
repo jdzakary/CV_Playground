@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from collections import deque
 
@@ -7,7 +8,7 @@ import cv2
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout, QSpinBox
+from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout, QSpinBox, QPushButton, QFileDialog
 
 from app.general.text import Label
 from app.general.enums import LabelLevel
@@ -24,6 +25,7 @@ class CaptureThread(QThread):
 
         # Property Setup
         self.__video_index = 0
+        self.__exit = False
         self.__capture = cv2.VideoCapture(self.video_index)
         self.__process_thread = process_thread
 
@@ -63,6 +65,8 @@ class CaptureThread(QThread):
         """
         self.__capture = self.__setup_capture()
         while True:
+            if self.__exit:
+                break
             ret, frame = self.capture.read()
             if ret:
                 self.__process_thread.frame_stack.appendleft(frame)
@@ -74,7 +78,14 @@ class CaptureThread(QThread):
         :param value:
         :return:
         """
+        if self.__process_thread.writing:
+            raise Exception('Cannot Change device while recording!')
         self.video_index = value
+
+    def exit(self, returnCode=0):
+        self.__exit = True
+        self.capture.release()
+        super().exit(returnCode)
 
     def __setup_capture(self) -> cv2.VideoCapture:
         """
@@ -98,11 +109,15 @@ class ProcessThread(QThread):
     update_image = pyqtSignal(QImage, name='update_image')
     frame_stack_depth = pyqtSignal(int, name='frame_stack_depth')
 
-    def __init__(self, parent):
+    def __init__(self, parent: StreamWidget):
         super().__init__(parent=parent)
         self.__frame_stack = deque()
+        self.__exit = False
+        self.__file_name = 'video_out.avi'
+        self.__writing = False
         self.__video_width = 800
         self.__operations: list[Operation] = []
+        self.__writer = self.__create_writer(True)
 
     @property
     def frame_stack(self) -> deque[np.ndarray]:
@@ -139,6 +154,29 @@ class ProcessThread(QThread):
         """
         return self.__operations
 
+    @property
+    def file_name(self) -> str:
+        return self.__file_name
+
+    @file_name.setter
+    def file_name(self, value: str):
+        self.__file_name = value
+
+    @property
+    def writing(self) -> bool:
+        return self.__writing
+
+    @writing.setter
+    def writing(self, value: bool) -> None:
+        if value == self.__writing:
+            return
+        if self.__writing:
+            self.__writing = False
+            self.__writer.release()
+        else:
+            self.__create_writer()
+            self.__writing = True
+
     def run(self):
         """
         Main execute method called by Qt Thread manager.
@@ -147,11 +185,15 @@ class ProcessThread(QThread):
         """
         previous = time.time()
         while True:
+            if self.__exit:
+                break
             try:
                 frame = self.frame_stack.pop()
                 for i in self.operations:
                     frame = i.execute(frame)
                 picture = self.create_picture(frame)
+                if self.writing:
+                    self.__writer.write(frame)
                 self.update_image.emit(picture)
             except IndexError:
                 pass
@@ -196,6 +238,32 @@ class ProcessThread(QThread):
         """
         self.__operations = ops
 
+    def toggle_writing(self) -> None:
+        self.writing = not self.writing
+
+    def __create_writer(self, initial: bool = False):
+        four_cc = cv2.VideoWriter.fourcc(*'XVID')
+
+        if initial:
+            writer = cv2.VideoWriter(self.file_name, four_cc, 20, (10, 10))
+            writer.release()
+            os.remove('video_out.avi')
+            return writer
+        else:
+            cap: cv2.VideoCapture = self.parent().capture.capture
+            cols = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            rows = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            frame_rate = float(cap.get(cv2.CAP_PROP_FPS))
+            self.__writer.open(self.file_name, four_cc, frame_rate, (cols, rows))
+
+    def exit(self, returnCode=0):
+        self.__exit = True
+        try:
+            self.__writer.release()
+        except AttributeError:
+            pass
+        super().exit(returnCode)
+
 
 class StreamControls(QWidget):
     """
@@ -207,9 +275,12 @@ class StreamControls(QWidget):
         # Property Setup
         self.__slider = QSlider(self)
         self.__spinner = QSpinBox(self)
+        self.__toggle = QPushButton('Start Recording')
+        self.__file_location = QPushButton('Change Save Location')
         self.__frame_stack_depth = Label('Frames in Stack: 0', LabelLevel.P)
 
         # Widget Setup
+        self.toggle.clicked.connect(self.__toggle_text)
         self.__setup()
 
     @property
@@ -229,6 +300,14 @@ class StreamControls(QWidget):
         return self.__spinner
 
     @property
+    def toggle(self) -> QPushButton:
+        return self.__toggle
+
+    @property
+    def file_location(self) -> QPushButton:
+        return self.__file_location
+
+    @property
     def frame_stack_depth(self) -> Label:
         """
         Represents the number of frames waiting to be processed
@@ -238,7 +317,8 @@ class StreamControls(QWidget):
 
     def __control_1(self, gap: int) -> QHBoxLayout:
         """
-        Layout for the slider that adjusts video size
+        Control set 1:
+            Layout for the slider that adjusts video size
         :param gap:
         :return:
         """
@@ -256,16 +336,22 @@ class StreamControls(QWidget):
 
     def __control_2(self, gap: int) -> QHBoxLayout:
         """
-        Layout for the spinner that selects the capture device.
+        Control set 2:
+            Spinner that selects the capture device.
+            Button to toggle recording
+            File picker to choose recording output
         :param gap:
         :return:
         """
         layout = QHBoxLayout()
         self.spinner.setMinimum(0)
         self.spinner.setValue(0)
-        label = Label('Select Capture Device:', LabelLevel.H4)
-        layout.addWidget(label)
+
+        layout.addWidget(Label('Select Capture Device:', LabelLevel.H4))
         layout.addWidget(self.spinner)
+        layout.addWidget(self.toggle)
+        layout.addWidget(self.file_location)
+
         layout.setAlignment(Qt.AlignLeft)
         layout.setSpacing(gap)
         return layout
@@ -298,6 +384,16 @@ class StreamControls(QWidget):
     def frame_stack_update(self, value: int):
         self.frame_stack_depth.setText(f'Frames in Stack: {value}')
 
+    def __toggle_text(self) -> None:
+        if self.toggle.text() == 'Start Recording':
+            self.toggle.setText('Stop Recording')
+            self.spinner.setDisabled(True)
+            self.file_location.setDisabled(True)
+        else:
+            self.toggle.setText('Start Recording')
+            self.spinner.setDisabled(False)
+            self.file_location.setDisabled(False)
+
 
 class StreamWidget(QWidget):
     """
@@ -311,6 +407,7 @@ class StreamWidget(QWidget):
         self.__process = ProcessThread(self)
         self.__capture = CaptureThread(self, self.process)
         self.__controls = StreamControls(self)
+        self.controls.file_location.clicked.connect(self.__change_file)
 
         # Widget Setup
         self.__setup()
@@ -366,6 +463,7 @@ class StreamWidget(QWidget):
         """
         self.controls.slider.valueChanged.connect(self.process.change_width)
         self.controls.spinner.valueChanged.connect(self.capture.change_device)
+        self.controls.toggle.clicked.connect(self.process.toggle_writing)
         self.process.update_image.connect(self.update_image)
         self.process.frame_stack_depth.connect(self.controls.frame_stack_update)
         self.capture.start()
@@ -381,3 +479,12 @@ class StreamWidget(QWidget):
         layout.addWidget(self.video)
         layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self.setLayout(layout)
+
+    def __change_file(self) -> None:
+        file_name, _ = QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Set Output File Name',
+            filter='Videos (*.avi)',
+        )
+        if file_name:
+            self.process.file_name = file_name

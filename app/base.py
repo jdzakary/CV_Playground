@@ -72,3 +72,5 @@ class BaseWindow(QMainWindow):
         :return:
         """
         setting.dump_settings()
+        self.central_widget.stream.capture.exit()
+        self.central_widget.stream.process.exit()
