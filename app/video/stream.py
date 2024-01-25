@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import time
 from collections import deque
@@ -10,6 +11,7 @@ from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout, QSpinBox, QPushButton, QFileDialog
 
+from app.general.stats import SimpleAvg
 from app.general.text import Label
 from app.general.enums import LabelLevel
 from app.video.processing import Operation
@@ -108,12 +110,14 @@ class ProcessThread(QThread):
     """
     update_image = pyqtSignal(QImage, name='update_image')
     frame_stack_depth = pyqtSignal(int, name='frame_stack_depth')
+    update_latency = pyqtSignal(list, name='update_latency')
 
     def __init__(self, parent: StreamWidget):
         super().__init__(parent=parent)
         self.__frame_stack = deque()
         self.__exit = False
         self.__file_name = 'video_out.avi'
+        self.__latency: dict[str, SimpleAvg] = {}
         self.__writing = False
         self.__video_width = 800
         self.__operations: list[Operation] = []
@@ -183,23 +187,34 @@ class ProcessThread(QThread):
         Apply all operations and then update picture.
         :return:
         """
-        previous = time.time()
+        previous_1 = time.time()
+        previous_2 = time.time()
         while True:
             if self.__exit:
                 break
             try:
                 frame = self.frame_stack.pop()
-                for i in self.operations:
-                    frame = i.execute(frame)
-                picture = self.create_picture(frame)
-                if self.writing:
-                    self.__writer.write(frame)
-                self.update_image.emit(picture)
             except IndexError:
                 pass
+            else:
+                for i in self.operations:
+                    a = time.time_ns()
+                    frame = i.execute(frame)
+                    b = time.time_ns()
+                    self.__latency[i.name].update((b - a) / 1e6)
+                if self.writing:
+                    self.__writer.write(frame)
+
+                if (now := time.time()) - previous_1 > 1:
+                    previous_1 = now
+                    status = [self.__latency[o.name].current_value() for o in self.operations]
+                    self.update_latency.emit(status)
+
+                picture = self.create_picture(frame)
+                self.update_image.emit(picture)
             finally:
-                if time.time() - previous > 1:
-                    previous = time.time()
+                if (now := time.time()) - previous_2 > 1:
+                    previous_2 = now
                     self.frame_stack_depth.emit(len(self.frame_stack))
 
     def create_picture(self, frame: np.ndarray) -> QImage:
@@ -236,7 +251,11 @@ class ProcessThread(QThread):
         :param ops:
         :return:
         """
+        for i in ops:
+            if i.name not in self.__latency:
+                self.__latency[i.name] = SimpleAvg(i.name, 20)
         self.__operations = ops
+
 
     def toggle_writing(self) -> None:
         self.writing = not self.writing
@@ -481,6 +500,7 @@ class StreamWidget(QWidget):
         self.setLayout(layout)
 
     def __change_file(self) -> None:
+        # noinspection PyArgumentList
         file_name, _ = QFileDialog.getSaveFileName(
             parent=self,
             caption='Set Output File Name',

@@ -241,8 +241,5 @@ class Boolean(Parameter):
 
     def adjust_fonts(self) -> None:
         font = setting.fonts[LabelLevel.P].generate_q()
-        try:
-            self.__button_false.setFont(font)
-            self.__button_true.setFont(font)
-        except RuntimeError:
-            setting.remove_font_callback(self.adjust_fonts)
+        self.__button_false.setFont(font)
+        self.__button_true.setFont(font)

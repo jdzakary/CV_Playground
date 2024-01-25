@@ -111,7 +111,10 @@ class Settings:
         :return:
         """
         for i in self.__font_callbacks:
-            i()
+            try:
+                i()
+            except RuntimeError:
+                self.__font_callbacks.remove(i)
 
     @staticmethod
     def load_settings() -> dict:
@@ -119,7 +122,6 @@ class Settings:
         Load settings from disk
         :return:
         """
-        print(os.getcwd())
         with open('app/settings.json', 'r') as file:
             return json.load(file)
 

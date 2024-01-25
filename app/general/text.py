@@ -44,7 +44,4 @@ class Label(QLabel):
         :return:
         """
         font = setting.fonts[self.level].generate_q()
-        try:
-            self.setFont(font)
-        except RuntimeError:
-            setting.remove_font_callback(self.update_font)
+        self.setFont(font)

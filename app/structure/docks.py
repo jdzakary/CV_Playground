@@ -1,8 +1,9 @@
-from PyQt5.QtCore import Qt, QModelIndex
+import numpy as np
+from PyQt5.QtCore import Qt, QModelIndex, pyqtSlot
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
     QTabBar, QVBoxLayout,
-    QAbstractItemView, QComboBox, QPushButton, QCompleter
+    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QListView, QLayout
 )
 
 from app.config import setting
@@ -11,6 +12,22 @@ from app.general.lists import CustomList
 from app.general.text import Label
 from app.video.processing import Operation
 from app.video.operations import OPP_MAP
+
+
+class OperatorListItem(QWidget):
+    def __init__(self, name: str):
+        super().__init__(None)
+        self.__name = Label(name, LabelLevel.P)
+        self.__latency = Label('0 ms', LabelLevel.P)
+        layout = QHBoxLayout()
+        layout.addWidget(self.__name)
+        layout.addStretch(1)
+        layout.addWidget(self.__latency)
+        layout.setContentsMargins(10, 0, 10, 0)
+        self.setLayout(layout)
+
+    def update_latency(self, latency: float) -> None:
+        self.__latency.setText(f'{latency:.3f} ms')
 
 
 class ManageOperators(QDockWidget):
@@ -119,7 +136,12 @@ class ManageOperators(QDockWidget):
     def __add_opp(self):
         idx = self.select_opp.currentIndex()
         name = self.select_opp.itemText(idx)
-        self.__view_opp.addItem(name)
+        proxy = QListWidgetItem()
+        widget = OperatorListItem(name)
+        proxy.setSizeHint(widget.sizeHint())
+
+        self.__view_opp.addItem(proxy)
+        self.__view_opp.setItemWidget(proxy, widget)
         self.operations.append(OPP_MAP[name]())
         self.__update_operations()
 
@@ -144,8 +166,15 @@ class ManageOperators(QDockWidget):
 
     def update_fonts(self) -> None:
         p = setting.fonts[LabelLevel.P].generate_q()
-        try:
-            self.select_opp.setFont(p)
-            self.__view_opp.setFont(p)
-        except RuntimeError:
-            setting.remove_font_callback(self.update_fonts)
+        self.select_opp.setFont(p)
+        self.__view_opp.setFont(p)
+
+    @pyqtSlot(list, name='update_latency')
+    def update_latency(self, latency) -> None:
+        for i in range(self.__view_opp.count()):
+            try:
+                item = self.__view_opp.item(i)
+                widget: OperatorListItem = self.__view_opp.itemWidget(item)
+                widget.update_latency(latency[i])
+            except Exception as e:
+                print(e)
