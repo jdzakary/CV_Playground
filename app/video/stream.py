@@ -70,7 +70,7 @@ class CaptureThread(QThread):
             if self.__exit:
                 break
             ret, frame = self.capture.read()
-            if ret:
+            if ret and len(self.__process_thread.frame_stack) < 3:
                 self.__process_thread.frame_stack.appendleft(frame)
 
     @pyqtSlot(int, name='change_device')

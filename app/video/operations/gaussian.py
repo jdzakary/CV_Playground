@@ -10,7 +10,12 @@ class GaussianBlur(Operation):
 
     def __init__(self):
         super().__init__()
-        self.__sigma = Slider(1, 10, 1)
+        self.__sigma = Slider(
+            minimum=1,
+            maximum=10,
+            step=1,
+            name='Sigma'
+        )
         self.params.append(self.sigma)
 
     @property

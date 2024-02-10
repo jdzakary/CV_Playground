@@ -10,9 +10,23 @@ class CannyEdges(Operation):
 
     def __init__(self):
         super().__init__()
-        self.__thresh_1 = Slider(50, 200, 10)
-        self.__thresh_2 = Slider(200, 300, 10)
-        self.__show_frames = Boolean('Show Frames', 'Only Edges')
+        self.__thresh_1 = Slider(
+            minimum=50,
+            maximum=200,
+            step=10,
+            name='Lower Threshold'
+        )
+        self.__thresh_2 = Slider(
+            minimum=200,
+            maximum=300,
+            step=10,
+            name='Upper Threshold',
+        )
+        self.__show_frames = Boolean(
+            label_true='Show Frames',
+            label_false='Only Edges',
+            name='Display Type'
+        )
         self.thresh_1.slider.valueChanged.connect(self.adjust_min)
         self.thresh_2.slider.valueChanged.connect(self.adjust_max)
         self.params.append(self.__thresh_1)

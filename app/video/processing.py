@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QLabel
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QLabel, QVBoxLayout
 
 from app.config import setting
 from app.general.enums import LabelLevel
@@ -84,10 +84,24 @@ class Parameter(ABC):
     Must provide a component that is rendered in the tool window.
     Intended to be very flexible
     """
+    def __init__(self, name: str) -> None:
+        self.__name = name
+
+    def component(self) -> QWidget:
+        """
+        The Component to be rendered in the tool window
+        :return: A pyqt Widget
+        """
+        widget = QWidget(None)
+        layout = QVBoxLayout()
+        layout.addWidget(Label(self.__name, LabelLevel.H4))
+        layout.addWidget(self._component)
+        widget.setLayout(layout)
+        return widget
 
     @property
     @abstractmethod
-    def component(self) -> QWidget:
+    def _component(self) -> QWidget:
         """
         The Component to be rendered in the tool window
         :return: A pyqt Widget
@@ -100,7 +114,8 @@ class Slider(Parameter):
     A numeric variable that can be adjusted using a slider.
     Qt Sliders can only use integer values. If
     """
-    def __init__(self, minimum: int, maximum: int, step: int = 1):
+    def __init__(self, minimum: int, maximum: int, step: int = 1, name: str = '') -> None:
+        super().__init__(name=name)
         self.__slider = QSlider()
         self.slider.setRange(minimum, maximum)
         self.slider.setValue(minimum)
@@ -121,10 +136,10 @@ class Slider(Parameter):
         l1.addWidget(self.minimum)
         l1.addWidget(self.slider)
         l1.addWidget(self.maximum)
-        self.component.setLayout(l1)
+        self.__component.setLayout(l1)
 
     @property
-    def component(self) -> QWidget:
+    def _component(self) -> QWidget:
         return self.__component
 
     @property
@@ -205,7 +220,8 @@ class Slider(Parameter):
 
 
 class Boolean(Parameter):
-    def __init__(self, label_true: str, label_false: str):
+    def __init__(self, label_true: str, label_false: str, name: str = ''):
+        super().__init__(name=name)
         self.__component = QWidget(None)
         self.__button_true = QRadioButton(label_true)
         self.__button_false = QRadioButton(label_false)
@@ -217,13 +233,13 @@ class Boolean(Parameter):
         l1 = QHBoxLayout()
         l1.addWidget(self.__button_true)
         l1.addWidget(self.__button_false)
-        self.component.setLayout(l1)
+        self.__component.setLayout(l1)
 
         setting.add_font_callback(self.adjust_fonts)
         self.adjust_fonts()
 
     @property
-    def component(self) -> QWidget:
+    def _component(self) -> QWidget:
         return self.__component
 
     @property
@@ -243,3 +259,51 @@ class Boolean(Parameter):
         font = setting.fonts[LabelLevel.P].generate_q()
         self.__button_false.setFont(font)
         self.__button_true.setFont(font)
+
+
+class SingleSelect(Parameter):
+    def __init__(self, labels: list[str], name: str = '') -> None:
+        super().__init__(name=name)
+        if not len(labels):
+            raise Exception("No labels given")
+
+        self.__component = QWidget(None)
+        self.__group = QButtonGroup(self.__component)
+        layout = QHBoxLayout()
+
+        for i, label in enumerate(labels):
+            radio = QRadioButton(label)
+            self.__group.addButton(radio)
+            layout.addWidget(radio)
+            if i == 0:
+                radio.setChecked(True)
+
+        self.__status = labels[0]
+        self.__component.setLayout(layout)
+        self.__group.buttonClicked.connect(self.__change_button)
+        setting.add_font_callback(self.adjust_fonts)
+        self.adjust_fonts()
+
+    @property
+    def _component(self) -> QWidget:
+        return self.__component
+
+    @property
+    def status(self) -> str:
+        return self.__status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        self.__status = value
+        i: QRadioButton
+        for i in self.__group.buttons():
+            i.setChecked(i.text() == value)
+
+    def __change_button(self, value: QRadioButton) -> None:
+        self.__status = value.text()
+
+    def adjust_fonts(self) -> None:
+        font = setting.fonts[LabelLevel.P].generate_q()
+        i: QRadioButton
+        for i in self.__group.buttons():
+            i.setFont(font)

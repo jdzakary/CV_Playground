@@ -158,7 +158,7 @@ class ManageOperators(QDockWidget):
         for i in self.operations:
             l1.addWidget(Label(i.name, LabelLevel.H3))
             for p in i.params:
-                l1.addWidget(p.component)
+                l1.addWidget(p.component())
         l1.setAlignment(Qt.AlignTop)
         tab = self.__tabs.widget(1)
         QWidget(None).setLayout(tab.layout())
