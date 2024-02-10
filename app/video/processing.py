@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioB
 
 from app.config import setting
 from app.general.enums import LabelLevel
+from app.general.layouts import FlowLayout
 from app.general.text import Label
 
 
@@ -269,7 +270,7 @@ class SingleSelect(Parameter):
 
         self.__component = QWidget(None)
         self.__group = QButtonGroup(self.__component)
-        layout = QHBoxLayout()
+        layout = FlowLayout()
 
         for i, label in enumerate(labels):
             radio = QRadioButton(label)
