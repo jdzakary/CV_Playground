@@ -138,6 +138,7 @@ class ProcessThread(QThread):
     update_image = pyqtSignal(QImage, name='update_image')
     frame_stack_depth = pyqtSignal(int, name='frame_stack_depth')
     update_latency = pyqtSignal(list, name='update_latency')
+    update_fps = pyqtSignal(float, name='update_fps')
 
     def __init__(self, parent: StreamWidget):
         super().__init__(parent=parent)
@@ -146,6 +147,7 @@ class ProcessThread(QThread):
         signal_manager['update_image'] = self.update_image
         signal_manager['frame_stack_depth'] = self.frame_stack_depth
         signal_manager['update_latency'] = self.update_latency
+        signal_manager['update_fps'] = self.update_fps
 
         self.__stream_data = StreamDataManager()
         self.__frame_stack = deque()
@@ -179,6 +181,7 @@ class ProcessThread(QThread):
         """
         previous_1 = time.time()
         previous_2 = time.time()
+        frames = 0
         while True:
             if self.__exit:
                 break
@@ -197,12 +200,16 @@ class ProcessThread(QThread):
                     self.__writer.write(frame)
 
                 if (now := time.time()) - previous_1 > 1:
+                    fps = frames / (now - previous_1)
+                    frames = 0
                     previous_1 = now
                     status = [self.__latency[o.name].current_value() for o in self.operations]
                     self.update_latency.emit(status)
+                    self.update_fps.emit(fps)
 
                 picture = self.__create_picture(frame)
                 self.update_image.emit(picture)
+                frames += 1
             finally:
                 if (now := time.time()) - previous_2 > 1:
                     previous_2 = now
@@ -272,15 +279,6 @@ class ProcessThread(QThread):
             pass
         super().exit(returnCode)
 
-    def __reinstate_placeholder(self) -> None:
-        file = QImage('assets/camera_loading.png')
-        image = file.scaled(
-            self.__stream_data.video_width,
-            self.__stream_data.video_width,
-            Qt.KeepAspectRatio
-        )
-        self.update_image.emit(image)
-
 
 class StreamControls(QWidget):
     """
@@ -301,6 +299,7 @@ class StreamControls(QWidget):
         self.__toggle_streaming = QPushButton('Start Streaming')
         self.__file_location = QPushButton('Change Save Location')
         self.__frame_stack_depth = Label('Frames in Stack: 0', LabelLevel.P)
+        self.__fps = Label('FPS: 0', LabelLevel.P)
         self.__streaming_loading = Spinner(self)
 
         # Replace Listeners
@@ -321,6 +320,7 @@ class StreamControls(QWidget):
 
         # Connect Slots to Signals
         signal_manager['frame_stack_depth'].connect(self.frame_stack_update)
+        signal_manager['update_fps'].connect(self.__update_fps)
 
         # Widget Setup
         self.__setup()
@@ -381,6 +381,7 @@ class StreamControls(QWidget):
         """
         layout = QHBoxLayout()
         layout.addWidget(self.__frame_stack_depth)
+        layout.addWidget(self.__fps)
         layout.setAlignment(Qt.AlignLeft)
         layout.setSpacing(gap)
         return layout
@@ -435,6 +436,9 @@ class StreamControls(QWidget):
             self.__toggle_streaming.setDisabled(False)
             self.__streaming_loading.setHidden(True)
         self.__stream_data.set_device_loading(value)
+
+    def __update_fps(self, value: float) -> None:
+        self.__fps.setText(f'FPS: {value:.3f}')
 
 
 class StreamWidget(QWidget):
