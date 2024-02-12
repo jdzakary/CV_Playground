@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import QMainWindow, QTabWidget, QTabBar
 from app.config import setting
 from app.general.enums import LabelLevel
 from app.structure.settings import Settings
-from app.video.stream import StreamWidget
+from app.streaming.stream import StreamWidget
 
 
 class CentralWidget(QTabWidget):

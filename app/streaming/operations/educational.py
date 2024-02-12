@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from scipy.ndimage import gaussian_laplace
 
-from app.video.processing import Operation, SingleSelect, Slider
+from app.streaming.processing import Operation, SingleSelect, Slider
 
 
 class ECE4354Gradients(Operation):
