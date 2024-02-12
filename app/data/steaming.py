@@ -10,6 +10,8 @@ class StreamDataManager(DataManager):
         self.__fps = 20
         self.__file_name = 'video_out.avi'
         self.__video_width = 640
+        self.__video_index = 0
+        self.__device_loading = False
         mapping = {
             'toggleStream': self.set_streaming,
             'toggleRecording': self.set_recording,
@@ -17,6 +19,8 @@ class StreamDataManager(DataManager):
             'setFPS': self.set_fps,
             'setFileName': self.set_file_name,
             'setVideoWidth': self.set_video_width,
+            'setVideoIndex': self.set_video_index,
+            'setDeviceLoading': self.set_device_loading,
         }
         super(StreamDataManager, self).__init__(mapping)
 
@@ -58,7 +62,29 @@ class StreamDataManager(DataManager):
 
     @property
     def video_width(self) -> int:
+        """
+        Width of the video stream as shown in the GUI
+        :return:
+        """
         return self.__video_width
+
+    @property
+    def video_index(self) -> int:
+        """
+        The index to create the OpenCV capture device
+        :return:
+        """
+        return self.__video_index
+
+    @property
+    def device_loading(self) -> bool:
+        """
+        Is the video capture device being created?
+        This is important for cameras that take a long time (>500ms)
+        to initialize
+        :return:
+        """
+        return self.__device_loading
 
     def set_streaming(self, value: bool) -> None:
         self.__streaming = value
@@ -77,3 +103,9 @@ class StreamDataManager(DataManager):
 
     def set_video_width(self, value: int) -> None:
         self.__video_width = value
+
+    def set_video_index(self, value: int) -> None:
+        self.__video_index = value
+
+    def set_device_loading(self, value: bool) -> None:
+        self.__device_loading = value
