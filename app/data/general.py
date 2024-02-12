@@ -25,6 +25,12 @@ class FakeSignal:
         else:
             self.__manager.waiting[self.__key].append(slot)
 
+    def disconnect(self, slot: Any) -> None:
+        if self.__key not in self.__manager.waiting_disconnect:
+            self.__manager.waiting_disconnect[self.__key] = [slot]
+        else:
+            self.__manager.waiting_disconnect[self.__key].append(slot)
+
 
 class SignalManager(dict):
     """
@@ -43,12 +49,16 @@ class SignalManager(dict):
     def __init__(self):
         super().__init__()
         self.__waiting: dict[str, list] = {}
+        self.__waiting_disconnect: dict[str, list] = {}
 
     def __setitem__(self, key: str, value: pyqtBoundSignal) -> None:
         super().__setitem__(key, value)
         for i in self.__waiting.get(key, []):
             self[key].connect(i)
         self.__waiting[key] = []
+        for i in self.__waiting_disconnect.get(key, []):
+            self[key].disconnect(i)
+        self.__waiting_disconnect[key] = []
 
     def __getitem__(self, key: str) -> pyqtBoundSignal | FakeSignal:
         try:
@@ -59,6 +69,10 @@ class SignalManager(dict):
     @property
     def waiting(self) -> dict[str, list]:
         return self.__waiting
+
+    @property
+    def waiting_disconnect(self) -> dict[str, list]:
+        return self.__waiting_disconnect
 
 
 signal_manager = SignalManager()

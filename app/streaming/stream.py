@@ -8,8 +8,10 @@ import cv2
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout, QSpinBox, QPushButton, QFileDialog, \
-    QGridLayout
+from PyQt5.QtWidgets import (
+    QWidget, QLabel, QVBoxLayout, QSlider,
+    QHBoxLayout, QSpinBox, QPushButton, QFileDialog,
+)
 
 from app.data.general import signal_manager
 from app.data.steaming import StreamDataManager
@@ -28,11 +30,11 @@ class CaptureThread(QThread):
         super().__init__(parent=parent)
 
         # Property Setup
+        self.__stream_data = StreamDataManager()
         self.__video_index = 0
         self.__exit = False
         self.__capture = cv2.VideoCapture(self.video_index)
         self.__process_thread = process_thread
-        self.__stream_data = StreamDataManager()
 
         # Connect Slots to Signals
         signal_manager['changeVideoDevice'].connect(self.change_device)
@@ -96,7 +98,7 @@ class CaptureThread(QThread):
         :return:
         """
         while True:
-            capture = cv2.VideoCapture(self.video_index)
+            capture = cv2.VideoCapture(self.__video_index)
             ret, frame = capture.read()
             if ret:
                 break
@@ -120,15 +122,13 @@ class ProcessThread(QThread):
         signal_manager['frame_stack_depth'] = self.frame_stack_depth
         signal_manager['update_latency'] = self.update_latency
 
-        # Connect Slots to Signals
-        signal_manager['changeVideoWidth'].connect(self.change_width)
-
+        self.__stream_data = StreamDataManager()
         self.__frame_stack = deque()
         self.__exit = False
         self.__latency: dict[str, SimpleAvg] = {}
         self.__operations: list[Operation] = []
         self.__writer = self.__create_writer(True)
-        self.__stream_data = StreamDataManager()
+        self.__stream_data.replace_listener('toggleRecording', self.set_recording)
 
     @property
     def frame_stack(self) -> deque[np.ndarray]:
@@ -168,7 +168,7 @@ class ProcessThread(QThread):
                     b = time.time_ns()
                     self.__latency[i.name].update((b - a) / 1e6)
 
-                if data_stream.writing:
+                if self.__stream_data.recording:
                     self.__writer.write(frame)
 
                 if (now := time.time()) - previous_1 > 1:
@@ -205,15 +205,6 @@ class ProcessThread(QThread):
         )
         return p
 
-    @pyqtSlot(int, name='change_width')
-    def change_width(self, value: int) -> None:
-        """
-        Qt slot to change the width of the streaming output stream
-        :param value:
-        :return:
-        """
-        self.video_width = value
-
     def change_operations(self, ops: list[Operation]) -> None:
         """
         Callback to replace the list of operations being used.
@@ -227,30 +218,25 @@ class ProcessThread(QThread):
         self.__operations = ops
 
     def __create_writer(self, initial: bool = False):
-        four_cc = cv2.VideoWriter.fourcc(*'XVID')
-
+        writer = cv2.VideoWriter(
+            self.__stream_data.file_name,
+            cv2.VideoWriter.fourcc(*'XVID'),
+            self.__stream_data.fps,
+            self.__stream_data.frame_size,
+        )
         if initial:
-            writer = cv2.VideoWriter(
-                data_stream.file_name,
-                four_cc,
-                data_stream.fps,
-                data_stream.frame_size,
-            )
             writer.release()
             os.remove('video_out.avi')
             return writer
         else:
-            self.__writer.open(
-                data_stream.file_name,
-                four_cc,
-                data_stream.fps,
-                data_stream.frame_size
-            )
+            self.__writer = writer
 
-    def writing_changed(self):
-        if data_stream.writing:
+    def set_recording(self, value: bool) -> None:
+        if value:
             self.__create_writer()
+            self.__stream_data.set_recording(True)
         else:
+            self.__stream_data.set_recording(False)
             self.__writer.release()
 
     def exit(self, returnCode=0):
@@ -266,31 +252,36 @@ class StreamControls(QWidget):
     """
     Controls for adjusting the stream and saving to a file.
     """
+
+    toggleStream = pyqtSignal(bool, name='toggleStream')
+    toggleRecording = pyqtSignal(bool, name='toggleRecording')
+
     def __init__(self, parent):
         super().__init__(parent=parent)
 
         # Property Setup
+        self.__stream_data = StreamDataManager()
         self.__slider = QSlider(self)
         self.__spinner = QSpinBox(self)
         self.__toggle_recording = QPushButton('Start Recording')
         self.__toggle_streaming = QPushButton('Start Streaming')
         self.__file_location = QPushButton('Change Save Location')
         self.__frame_stack_depth = Label('Frames in Stack: 0', LabelLevel.P)
+        self.__stream_data.replace_listener('toggleRecording', self.__set_recording)
+
+        # Proxy Signals
+        self.__toggle_streaming.clicked.connect(self.__proxy_toggle_stream)
+        self.__toggle_recording.clicked.connect(self.__proxy_toggle_recording)
 
         # Register Signals
-        signal_manager['changeVideoWidth'] = self.__slider.valueChanged
+        signal_manager['setVideoWidth'] = self.__slider.valueChanged
         signal_manager['changeVideoDevice'] = self.__spinner.valueChanged
-        signal_manager['toggleCapture'] = self.__toggle_recording.clicked
-        signal_manager['changeFileName'] = self.__file_location.clicked
-        signal_manager['toggleStream'] = self.__toggle_streaming.clicked
+        signal_manager['launchFileDialog'] = self.__file_location.clicked
+        signal_manager['toggleStream'] = self.toggleStream
+        signal_manager['toggleRecording'] = self.toggleRecording
 
         # Connect Slots to Signals
         signal_manager['frame_stack_depth'].connect(self.frame_stack_update)
-        signal_manager['toggleCapture'].connect(self.__set_recording)
-        signal_manager['toggleStream'].connect(self.__set_streaming)
-
-        # Add callbacks
-        data_stream.add_callback('writing', self.__respond_to_recording)
 
         # Widget Setup
         self.__setup()
@@ -365,8 +356,9 @@ class StreamControls(QWidget):
     def frame_stack_update(self, value: int):
         self.__frame_stack_depth.setText(f'Frames in Stack: {value}')
 
-    def __respond_to_recording(self) -> None:
-        if data_stream.writing:
+    @pyqtSlot(bool, name='toggleRecording')
+    def __set_recording(self, value: bool) -> None:
+        if value:
             self.__toggle_recording.setText('Stop Recording')
             self.__spinner.setDisabled(True)
             self.__file_location.setDisabled(True)
@@ -374,32 +366,37 @@ class StreamControls(QWidget):
             self.__toggle_recording.setText('Start Recording')
             self.__spinner.setDisabled(False)
             self.__file_location.setDisabled(False)
+        self.__stream_data.set_recording(value)
 
-    @staticmethod
-    def __set_recording() -> None:
-        data_stream.writing = not data_stream.writing
+    def __proxy_toggle_stream(self) -> None:
+        self.toggleStream.emit(not self.__stream_data.streaming)
 
-    @staticmethod
-    def __set_streaming() -> None:
-        data_stream.stream_active = not data_stream.stream_active
+    def __proxy_toggle_recording(self) -> None:
+        self.toggleRecording.emit(not self.__stream_data.recording)
 
 
 class StreamWidget(QWidget):
     """
     Primary widget for the stream tab
     """
+    setFileName = pyqtSignal(str, name='setFileName')
+
     def __init__(self, parent):
         super().__init__(parent=parent)
 
         # Property Setup
+        self.__stream_data = StreamDataManager()
         self.__video = QLabel(self)
         self.__process = ProcessThread(self)
         self.__capture = CaptureThread(self, self.process)
         self.__controls = StreamControls(self)
 
+        # Register Signals
+        signal_manager['setFileName'] = self.setFileName
+
         # Connect Slots to Signals
         signal_manager['update_image'].connect(self.update_image)
-        signal_manager['changeFileName'].connect(self.__change_file)
+        signal_manager['launchFileDialog'].connect(self.__change_file)
 
         # Widget Setup
         self.__setup()
@@ -446,15 +443,15 @@ class StreamWidget(QWidget):
         :return:
         """
         pixmap = QPixmap()
-        self.video.setPixmap(pixmap.fromImage(image, Qt.AutoColor))
+        self.__video.setPixmap(pixmap.fromImage(image, Qt.AutoColor))
 
     def __start_threads(self) -> None:
         """
         Thread related logic
         :return:
         """
-        self.capture.start()
-        self.process.start()
+        self.__capture.start()
+        self.__process.start()
 
     def __setup(self) -> None:
         """
@@ -462,8 +459,8 @@ class StreamWidget(QWidget):
         :return:
         """
         layout = QVBoxLayout()
-        layout.addWidget(self.controls)
-        layout.addWidget(self.video)
+        layout.addWidget(self.__controls)
+        layout.addWidget(self.__video)
         layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self.setLayout(layout)
 
@@ -475,4 +472,4 @@ class StreamWidget(QWidget):
             filter='Videos (*.avi)',
         )
         if file_name:
-            data_stream.file_name = file_name
+            self.setFileName.emit(file_name)
