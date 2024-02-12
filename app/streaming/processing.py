@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout
 
 from app.config import setting
 from app.general.enums import LabelLevel

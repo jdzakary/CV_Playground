@@ -1,17 +1,16 @@
-import numpy as np
 from PyQt5.QtCore import Qt, QModelIndex, pyqtSlot
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
     QTabBar, QVBoxLayout,
-    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QListView, QLayout
+    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem
 )
 
 from app.config import setting
 from app.general.enums import LabelLevel
 from app.general.lists import CustomList
 from app.general.text import Label
-from app.video.processing import Operation
-from app.video.operations import OPP_MAP
+from app.streaming.processing import Operation
+from app.streaming.operations import OPP_MAP
 
 
 class OperatorListItem(QWidget):
@@ -33,7 +32,7 @@ class OperatorListItem(QWidget):
 class ManageOperators(QDockWidget):
     """
     Dockable tool window for managing the real-time cv operations
-    applied to the video stream.
+    applied to the streaming stream.
     """
     def __init__(self, parent):
         super().__init__("Manage Video Operators", parent)

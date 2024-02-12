@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from app.video.processing import Operation
+from app.streaming.processing import Operation
 
 
 class SimpleDifference(Operation):

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from app.video.processing import Operation, Slider, Boolean
+from app.streaming.processing import Operation, Slider, Boolean
 
 
 class CannyEdges(Operation):

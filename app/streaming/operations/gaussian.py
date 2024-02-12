@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from app.video.processing import Operation, Slider
+from app.streaming.processing import Operation, Slider
 
 
 class GaussianBlur(Operation):
