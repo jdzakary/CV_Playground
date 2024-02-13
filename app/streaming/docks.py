@@ -32,10 +32,10 @@ class OperatorListItem(QWidget):
 class ManageOperators(QDockWidget):
     """
     Dockable tool window for managing the real-time cv operations
-    applied to the streaming stream.
+    applied to the stream.
     """
     def __init__(self, parent):
-        super().__init__("Manage Video Operators", parent)
+        super().__init__("Manage Stream Operators", parent)
 
         self.__operations: list[Operation] = []
         self.__select_opp = QComboBox(self)
@@ -46,27 +46,14 @@ class ManageOperators(QDockWidget):
         self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
         self.__content = self.__create_content()
         self.update_fonts()
-        # setting.add_font_callback(self.update_fonts)
-        self.setWidget(self.content)
-
-    @property
-    def content(self) -> QWidget:
-        return self.__content
-
-    @property
-    def operations(self) -> list[Operation]:
-        return self.__operations
-
-    @property
-    def select_opp(self) -> QComboBox:
-        return self.__select_opp
+        self.setWidget(self.__content)
 
     def __create_content(self) -> QWidget:
         content = QWidget(self)
         configure = QWidget(content)
         configure.setLayout(QVBoxLayout())
-        self.__tabs.addTab(self.__tab_select(), 'Select and Arrange')
-        self.__tabs.addTab(configure, 'Configure Options')
+        self.__tabs.addTab(self.__tab_select(), 'Select')
+        self.__tabs.addTab(configure, 'Configure')
         self.change_tab_font(self.__tabs)
         setting.add_font_callback(lambda: self.change_tab_font(self.__tabs))
 
@@ -92,10 +79,10 @@ class ManageOperators(QDockWidget):
         widget = QWidget(self)
 
         # Combo Box to select operation
-        self.select_opp.addItems(OPP_MAP.keys())
-        self.select_opp.setInsertPolicy(QComboBox.NoInsert)
-        self.select_opp.setEditable(True)
-        self.select_opp.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.__select_opp.addItems(OPP_MAP.keys())
+        self.__select_opp.setInsertPolicy(QComboBox.NoInsert)
+        self.__select_opp.setEditable(True)
+        self.__select_opp.completer().setCompletionMode(QCompleter.PopupCompletion)
 
         # Button to add operation to end of list
         add = QPushButton('Add Operation')
@@ -103,7 +90,7 @@ class ManageOperators(QDockWidget):
 
         # Layout the controls
         l2 = QHBoxLayout()
-        l2.addWidget(self.select_opp)
+        l2.addWidget(self.__select_opp)
         l2.addWidget(add)
 
         # List of operations
@@ -125,39 +112,43 @@ class ManageOperators(QDockWidget):
         idx2: QModelIndex,
         row_dest: int
     ):
-        moved = self.operations.pop(row_start)
+        moved = self.__operations.pop(row_start)
         if row_dest == 0:
-            self.operations.insert(0, moved)
+            self.__operations.insert(0, moved)
         else:
-            self.operations.insert(row_dest - 1, moved)
+            self.__operations.insert(row_dest - 1, moved)
         self.__update_operations()
 
     def __add_opp(self):
-        idx = self.select_opp.currentIndex()
-        name = self.select_opp.itemText(idx)
+        idx = self.__select_opp.currentIndex()
+        name = self.__select_opp.itemText(idx)
         proxy = QListWidgetItem()
         widget = OperatorListItem(name)
         proxy.setSizeHint(widget.sizeHint())
 
         self.__view_opp.addItem(proxy)
         self.__view_opp.setItemWidget(proxy, widget)
-        self.operations.append(OPP_MAP[name]())
+        self.__operations.append(OPP_MAP[name]())
         self.__update_operations()
 
     def __remove_opp(self, index: int):
-        self.operations.pop(index)
+        self.__operations.pop(index)
         self.__update_operations()
 
     def __update_operations(self):
-        self.update_operations(self.operations)
+        self.update_operations(self.__operations)
         self.__tab_configure()
 
     def __tab_configure(self) -> None:
+        """
+        Every time
+        :return:
+        """
         l1 = QVBoxLayout()
-        for i in self.operations:
+        for i in self.__operations:
             l1.addWidget(Label(i.name, LabelLevel.H3))
             for p in i.params:
-                l1.addWidget(p.component())
+                l1.addWidget(p.component)
         l1.setAlignment(Qt.AlignTop)
         tab = self.__tabs.widget(1)
         QWidget(None).setLayout(tab.layout())
@@ -165,7 +156,7 @@ class ManageOperators(QDockWidget):
 
     def update_fonts(self) -> None:
         p = setting.fonts[LabelLevel.P].generate_q()
-        self.select_opp.setFont(p)
+        self.__select_opp.setFont(p)
         self.__view_opp.setFont(p)
 
     @pyqtSlot(list, name='update_latency')

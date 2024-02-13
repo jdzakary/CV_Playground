@@ -14,7 +14,9 @@ class GaussianBlur(Operation):
             minimum=1,
             maximum=10,
             step=1,
-            name='Sigma'
+            name='Sigma',
+            default=1,
+            divisor=2,
         )
         self.params.append(self.sigma)
 

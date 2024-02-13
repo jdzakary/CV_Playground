@@ -87,18 +87,19 @@ class Parameter(ABC):
     """
     def __init__(self, name: str) -> None:
         self.__name = name
+        self.__component = QWidget(None)
+        layout = QVBoxLayout()
+        layout.addWidget(Label(self.__name, LabelLevel.H4))
+        layout.addWidget(self._component)
+        self.__component.setLayout(layout)
 
+    @property
     def component(self) -> QWidget:
         """
         The Component to be rendered in the tool window
         :return: A pyqt Widget
         """
-        widget = QWidget(None)
-        layout = QVBoxLayout()
-        layout.addWidget(Label(self.__name, LabelLevel.H4))
-        layout.addWidget(self._component)
-        widget.setLayout(layout)
-        return widget
+        return self.__component
 
     @property
     @abstractmethod
@@ -115,29 +116,49 @@ class Slider(Parameter):
     A numeric variable that can be adjusted using a slider.
     Qt Sliders can only use integer values. If
     """
-    def __init__(self, minimum: int, maximum: int, step: int = 1, name: str = '') -> None:
-        super().__init__(name=name)
+    def __init__(
+        self,
+        minimum: int,
+        maximum: int,
+        step: int = 1,
+        name: str = '',
+        default: int = None,
+        divisor: int = 1,
+    ) -> None:
         self.__slider = QSlider()
-        self.slider.setRange(minimum, maximum)
-        self.slider.setValue(minimum)
-        self.slider.setTickInterval(step)
-        self.slider.setSingleStep(step)
-        self.slider.valueChanged.connect(self.__change_slider)
-        self.slider.setOrientation(Qt.Horizontal)
+        self.__slider.setRange(minimum, maximum)
+        self.__slider.setValue(minimum)
+        self.__slider.setTickInterval(step)
+        self.__slider.setSingleStep(step)
+        self.__slider.valueChanged.connect(self.__change_slider)
+        self.__slider.setOrientation(Qt.Horizontal)
+        self.__divisor = divisor
 
-        self.__number = Label(f'{minimum}', LabelLevel.P)
+        self.__number = Label(
+            f'{minimum / self.__divisor}',
+            LabelLevel.P
+        )
         self.__component = QWidget(None)
-        self.__minimum = Label(f'{minimum}', LabelLevel.P)
-        self.__maximum = Label(f'{maximum}', LabelLevel.P)
+        self.__minimum = Label(
+            f'{minimum / self.__divisor}',
+            LabelLevel.P
+        )
+        self.__maximum = Label(
+            f'{maximum / self.__divisor}',
+            LabelLevel.P
+        )
+        if default is not None:
+            self.__slider.setValue(default)
 
         l1 = QHBoxLayout()
         l1.addWidget(Label('Current Value:', LabelLevel.P))
         l1.addWidget(self.__number)
         l1.addSpacing(35)
-        l1.addWidget(self.minimum)
-        l1.addWidget(self.slider)
-        l1.addWidget(self.maximum)
+        l1.addWidget(self.__minimum)
+        l1.addWidget(self.__slider)
+        l1.addWidget(self.__maximum)
         self.__component.setLayout(l1)
+        super().__init__(name=name)
 
     @property
     def _component(self) -> QWidget:
@@ -152,16 +173,16 @@ class Slider(Parameter):
         return self.__slider
 
     @property
-    def number(self) -> int:
+    def number(self) -> float:
         """
         The value of the parameter
         :return:
         """
-        return int(self.__number.text())
+        return float(self.__number.text())
 
     @number.setter
     def number(self, value: int):
-        self.__number.setText(f'{value}')
+        self.__number.setText(f'{value / self.__divisor}')
 
     @property
     def minimum(self) -> Label:
@@ -180,12 +201,12 @@ class Slider(Parameter):
         :param value:
         :return:
         """
-        if int(self.maximum.text()) <= value:
+        if float(self.maximum.text()) <= value / self.__divisor:
             raise Exception('Minimum cannot exceed maximum!')
         if self.__slider.value() <= value:
             self.__slider.setValue(value)
         self.__slider.setMinimum(value)
-        self.__minimum.setText(f'{value}')
+        self.__minimum.setText(f'{value / self.__divisor}')
 
     @property
     def maximum(self):
@@ -204,12 +225,12 @@ class Slider(Parameter):
         :param value:
         :return:
         """
-        if int(self.minimum.text()) >= value:
+        if float(self.minimum.text()) >= value / self.__divisor:
             raise Exception('Maximum cannot be lower than minimum!')
         if self.__slider.value() >= value:
             self.__slider.setValue(value)
         self.__slider.setMaximum(value)
-        self.__maximum.setText(f'{value}')
+        self.__maximum.setText(f'{value / self.__divisor}')
 
     def __change_slider(self, value: int):
         """
@@ -222,7 +243,6 @@ class Slider(Parameter):
 
 class Boolean(Parameter):
     def __init__(self, label_true: str, label_false: str, name: str = ''):
-        super().__init__(name=name)
         self.__component = QWidget(None)
         self.__button_true = QRadioButton(label_true)
         self.__button_false = QRadioButton(label_false)
@@ -238,6 +258,7 @@ class Boolean(Parameter):
 
         setting.add_font_callback(self.adjust_fonts)
         self.adjust_fonts()
+        super().__init__(name=name)
 
     @property
     def _component(self) -> QWidget:
@@ -264,10 +285,8 @@ class Boolean(Parameter):
 
 class SingleSelect(Parameter):
     def __init__(self, labels: list[str], name: str = '') -> None:
-        super().__init__(name=name)
         if not len(labels):
             raise Exception("No labels given")
-
         self.__component = QWidget(None)
         self.__group = QButtonGroup(self.__component)
         layout = FlowLayout()
@@ -284,6 +303,7 @@ class SingleSelect(Parameter):
         self.__group.buttonClicked.connect(self.__change_button)
         setting.add_font_callback(self.adjust_fonts)
         self.adjust_fonts()
+        super().__init__(name=name)
 
     @property
     def _component(self) -> QWidget:
