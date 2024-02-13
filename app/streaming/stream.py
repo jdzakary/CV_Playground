@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import time
-from collections import deque
 
 import cv2
 import numpy as np
@@ -14,7 +13,7 @@ from PyQt5.QtWidgets import (
 )
 
 from app.data.general import signal_manager
-from app.data.steaming import StreamDataManager
+from app.data.steaming import StreamDataManager, FrameStack, stream_operations
 from app.general.spinner import Spinner
 from app.general.stats import SimpleAvg
 from app.general.text import Label
@@ -46,17 +45,21 @@ class CaptureThread(QThread):
     setFPS = pyqtSignal(float, name='setFPS')
     setFrameSize = pyqtSignal(tuple, name='setFrameSize')
     setDeviceLoading = pyqtSignal(bool, name='setDeviceLoading')
+    frameAdded = pyqtSignal(np.ndarray, name='frameAdded')
 
-    def __init__(self, parent, process_thread: ProcessThread):
+    def __init__(self, parent):
         super().__init__(parent=parent)
 
         # Property Setup
         self.__stream_data = StreamDataManager()
         self.__exit = False
         self.__capture: cv2.VideoCapture
-        self.__process_thread = process_thread
         self.__stream_data.replace_listener('toggleStream', self.__toggle_stream)
         self.__stream_data.replace_listener('setVideoIndex', self.__set_video_index)
+        self.__frame_stack = FrameStack(
+            signal_add=self.frameAdded,
+            auto_remove=True
+        )
 
         # Register Signals
         signal_manager['setFPS'] = self.setFPS
@@ -75,8 +78,8 @@ class CaptureThread(QThread):
             if not self.__stream_data.streaming:
                 continue
             ret, frame = self.__capture.read()
-            if ret and len(self.__process_thread.frame_stack) < 3:
-                self.__process_thread.frame_stack.appendleft(frame)
+            if ret and len(self.__frame_stack) < 3:
+                self.__frame_stack.add_frame(frame, True)
             if not ret:
                 signal_manager['toggleRecording'].emit(False)
                 signal_manager['toggleStream'].emit(False)
@@ -139,6 +142,7 @@ class ProcessThread(QThread):
     frame_stack_depth = pyqtSignal(int, name='frame_stack_depth')
     update_latency = pyqtSignal(list, name='update_latency')
     update_fps = pyqtSignal(float, name='update_fps')
+    frameRemoved = pyqtSignal(name='frameRemoved')
 
     def __init__(self, parent: StreamWidget):
         super().__init__(parent=parent)
@@ -150,28 +154,15 @@ class ProcessThread(QThread):
         signal_manager['update_fps'] = self.update_fps
 
         self.__stream_data = StreamDataManager()
-        self.__frame_stack = deque()
+        self.__frame_stack = FrameStack(
+            signal_remove=self.frameRemoved,
+            auto_add=True
+        )
         self.__exit = False
         self.__latency: dict[str, SimpleAvg] = {}
         self.__operations: list[Operation] = []
         self.__writer = self.__create_writer(True)
         self.__stream_data.replace_listener('toggleRecording', self.set_recording)
-
-    @property
-    def frame_stack(self) -> deque[np.ndarray]:
-        """
-        The frames waiting to be processed
-        :return:
-        """
-        return self.__frame_stack
-
-    @property
-    def operations(self) -> list[Operation]:
-        """
-        The list of operations to be applied
-        :return:
-        """
-        return self.__operations
 
     def run(self):
         """
@@ -186,15 +177,18 @@ class ProcessThread(QThread):
             if self.__exit:
                 break
             try:
-                frame = self.frame_stack.pop()
+                frame = self.__frame_stack.remove_frame(True)
             except IndexError:
                 pass
             else:
-                for i in self.operations:
+                for i in stream_operations:
                     a = time.time_ns()
                     frame = i.execute(frame)
                     b = time.time_ns()
-                    self.__latency[i.name].update((b - a) / 1e6)
+                    try:
+                        self.__latency[i.name].update((b - a) / 1e6)
+                    except KeyError:
+                        self.__latency[i.name] = SimpleAvg(i.name, 20)
 
                 if self.__stream_data.recording:
                     self.__writer.write(frame)
@@ -203,7 +197,7 @@ class ProcessThread(QThread):
                     fps = frames / (now - previous_1)
                     frames = 0
                     previous_1 = now
-                    status = [self.__latency[o.name].current_value() for o in self.operations]
+                    status = [self.__latency[o.name].current_value() for o in stream_operations]
                     self.update_latency.emit(status)
                     self.update_fps.emit(fps)
 
@@ -213,7 +207,7 @@ class ProcessThread(QThread):
             finally:
                 if (now := time.time()) - previous_2 > 1:
                     previous_2 = now
-                    self.frame_stack_depth.emit(len(self.frame_stack))
+                    self.frame_stack_depth.emit(len(self.__frame_stack))
 
     def __create_picture(self, frame: np.ndarray) -> QImage:
         """
@@ -236,18 +230,6 @@ class ProcessThread(QThread):
             Qt.KeepAspectRatio
         )
         return p
-
-    def change_operations(self, ops: list[Operation]) -> None:
-        """
-        Callback to replace the list of operations being used.
-        Connected to the ManageOperations dock window
-        :param ops:
-        :return:
-        """
-        for i in ops:
-            if i.name not in self.__latency:
-                self.__latency[i.name] = SimpleAvg(i.name, 20)
-        self.__operations = ops
 
     def __create_writer(self, initial: bool = False):
         writer = cv2.VideoWriter(
@@ -398,11 +380,9 @@ class StreamControls(QWidget):
         l1.addLayout(self.__stats(gap))
         self.setLayout(l1)
 
-    # @pyqtSlot(int, name='frame_stack_depth')
     def frame_stack_update(self, value: int):
         self.__frame_stack_depth.setText(f'Frames in Stack: {value}')
 
-    # @pyqtSlot(bool, name='toggleRecording')
     def __set_recording(self, value: bool) -> None:
         if value:
             self.__toggle_recording.setText('Stop Recording')
@@ -416,7 +396,6 @@ class StreamControls(QWidget):
             self.__toggle_streaming.setDisabled(False)
         self.__stream_data.set_recording(value)
 
-    # @pyqtSlot(bool, name='toggleStream')
     def __set_stream(self, value: bool) -> None:
         self.__toggle_streaming.setText('Stop Streaming' if value else 'Start Streaming')
         self.__toggle_recording.setEnabled(value)
@@ -426,7 +405,8 @@ class StreamControls(QWidget):
         self.toggleStream.emit(not self.__stream_data.streaming)
 
     def __proxy_toggle_recording(self) -> None:
-        self.toggleRecording.emit(not self.__stream_data.recording)
+        if not self.__stream_data.device_loading:
+            self.toggleRecording.emit(not self.__stream_data.recording)
 
     def __set_device_loading(self, value: bool) -> None:
         if value:
@@ -454,7 +434,7 @@ class StreamWidget(QWidget):
         self.__stream_data = StreamDataManager()
         self.__video = QLabel(self)
         self.__process = ProcessThread(self)
-        self.__capture = CaptureThread(self, self.__process)
+        self.__capture = CaptureThread(self)
         self.__controls = StreamControls(self)
 
         # Register Signals
@@ -501,7 +481,6 @@ class StreamWidget(QWidget):
         """
         return self.__controls
 
-    # @pyqtSlot(QImage, name='update_image')
     def update_image(self, image: QImage):
         """
         Callback to update the pixmap of the streaming object

@@ -1,4 +1,53 @@
-from app.data.general import DataManager
+from __future__ import annotations
+
+from collections import deque
+from typing import TYPE_CHECKING
+
+from app.data.general import DataManager, signal_manager
+
+if TYPE_CHECKING:
+    from PyQt5.QtCore import pyqtBoundSignal
+    import numpy as np
+
+
+class FrameStack(deque):
+    def __init__(
+        self,
+        signal_add: pyqtBoundSignal = None,
+        signal_remove: pyqtBoundSignal = None,
+        auto_remove: bool = True,
+        auto_add: bool = True,
+    ):
+        super().__init__()
+        if signal_add is not None:
+            signal_manager['frameAdded'] = signal_add
+            self.__signal_add = signal_add
+            auto_add = False
+        if signal_remove is not None:
+            signal_manager['frameRemoved'] = signal_remove
+            self.__signal_remove = signal_remove
+            auto_remove = False
+        if auto_add:
+            signal_manager['frameAdded'].connect(self.__auto_add)
+        if auto_remove:
+            signal_manager['frameRemoved'].connect(self.__auto_remove)
+
+    def add_frame(self, frame: np.ndarray, emit: bool = False) -> None:
+        self.appendleft(frame)
+        if emit:
+            self.__signal_add.emit(frame)
+
+    def remove_frame(self, emit: bool = False) -> np.ndarray:
+        frame = self.pop()
+        if emit:
+            self.__signal_remove.emit()
+        return frame
+
+    def __auto_add(self, frame: np.ndarray) -> None:
+        self.appendleft(frame)
+
+    def __auto_remove(self) -> None:
+        self.pop()
 
 
 class StreamDataManager(DataManager):
@@ -109,3 +158,6 @@ class StreamDataManager(DataManager):
 
     def set_device_loading(self, value: bool) -> None:
         self.__device_loading = value
+
+
+stream_operations = list()

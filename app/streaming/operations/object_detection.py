@@ -11,7 +11,7 @@ class YoloObjectDetect(Operation):
 
     def __init__(self):
         super().__init__()
-        self.__model = YOLO('yolov8n.pt')
+        self.__model = YOLO('assets/yolov8n.pt')
         self.__model.cuda(0)
         self.__conf = Slider(
             minimum=1,
@@ -41,7 +41,7 @@ class YoloObjectSegmentation(Operation):
 
     def __init__(self):
         super().__init__()
-        self.__model = YOLO('yolov8n-seg.pt')
+        self.__model = YOLO('assets/yolov8n-seg.pt')
         self.__model.cuda(0)
         self.__conf = Slider(
             minimum=1,

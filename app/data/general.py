@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Callable, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PyQt5.QtCore import pyqtBoundSignal
+    from typing import Callable, Any
 
 
 class FakeSignal:
