@@ -1,8 +1,10 @@
+from functools import partial
+
 from PyQt5.QtCore import Qt, QModelIndex
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
     QTabBar, QVBoxLayout,
-    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem
+    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QGridLayout
 )
 
 from app.config import setting
@@ -11,7 +13,7 @@ from app.data.steaming import stream_operations
 from app.general.enums import LabelLevel
 from app.general.lists import CustomList
 from app.general.text import Label
-from app.streaming.operations import OPP_MAP
+from app.streaming.operations import ModuleManager
 
 
 class OperatorListItem(QWidget):
@@ -45,6 +47,8 @@ class ManageOperators(QDockWidget):
         self.__view_opp = CustomList(self)
         self.__view_opp.callback_remove = self.__remove_opp
         self.__tabs = QTabWidget(self)
+        self.__module_manager = ModuleManager(self)
+        self.__module_manager.modulesUpdated.connect(self.__update_modules)
 
         self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
         self.__content = self.__create_content()
@@ -55,10 +59,14 @@ class ManageOperators(QDockWidget):
         content = QWidget(self)
         configure = QWidget(content)
         configure.setLayout(QVBoxLayout())
+        load = QWidget(content)
+        load.setLayout(QVBoxLayout())
         self.__tabs.addTab(self.__tab_select(), 'Select')
         self.__tabs.addTab(configure, 'Configure')
+        self.__tabs.addTab(load, 'Load')
         self.change_tab_font(self.__tabs)
         setting.add_font_callback(lambda: self.change_tab_font(self.__tabs))
+        self.__tab_load()
 
         layout = QVBoxLayout()
         layout.addWidget(Label('Manage Operations:', LabelLevel.H1))
@@ -78,7 +86,7 @@ class ManageOperators(QDockWidget):
         widget = QWidget(self)
 
         # Combo Box to select operation
-        self.__select_opp.addItems(OPP_MAP.keys())
+        self.__select_opp.addItems(self.__module_manager.operations.keys())
         self.__select_opp.setInsertPolicy(QComboBox.NoInsert)
         self.__select_opp.setEditable(True)
         self.__select_opp.completer().setCompletionMode(QCompleter.PopupCompletion)
@@ -102,6 +110,21 @@ class ManageOperators(QDockWidget):
         widget.setLayout(l1)
 
         return widget
+
+    def __tab_load(self) -> None:
+        layout = QGridLayout()
+        layout.setAlignment(Qt.AlignTop)
+        for row, (file, custom) in enumerate(self.__module_manager.modules.items()):
+            button = QPushButton('Load File')
+            if custom.imported:
+                button.setDisabled(True)
+            else:
+                button.clicked.connect(partial(self.__module_manager.attempt_import, file))
+            layout.addWidget(Label(file, LabelLevel.P), row, 0)
+            layout.addWidget(button, row, 1)
+        tab = self.__tabs.widget(2)
+        QWidget(None).setLayout(tab.layout())
+        tab.setLayout(layout)
 
     def __order_changed(
         self,
@@ -127,7 +150,7 @@ class ManageOperators(QDockWidget):
 
         self.__view_opp.addItem(proxy)
         self.__view_opp.setItemWidget(proxy, widget)
-        stream_operations.append(OPP_MAP[name]())
+        stream_operations.append(self.__module_manager.operations[name]())
         self.__tab_configure()
 
     def __remove_opp(self, index: int):
@@ -162,3 +185,10 @@ class ManageOperators(QDockWidget):
                 widget.update_latency(latency[i])
             except Exception as e:
                 print(e)
+
+    def __update_modules(self) -> None:
+        existing = [self.__select_opp.itemText(x) for x in range(self.__select_opp.count())]
+        for opp in self.__module_manager.operations:
+            if opp not in existing:
+                self.__select_opp.addItem(opp)
+        self.__tab_load()
