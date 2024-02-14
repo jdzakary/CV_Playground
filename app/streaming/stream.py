@@ -495,8 +495,8 @@ class StreamWidget(QWidget):
         Thread related logic
         :return:
         """
-        self.__capture.start()
-        self.__process.start()
+        self.__capture.start(QThread.HighPriority)
+        self.__process.start(QThread.HighestPriority)
 
     def __setup(self) -> None:
         """
