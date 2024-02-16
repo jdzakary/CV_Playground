@@ -3,11 +3,11 @@ from __future__ import annotations
 import os
 from importlib import import_module
 from inspect import isclass
-from types import ModuleType
 from typing import Type
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
+from app.data.general import signal_manager
 from app.streaming.processing import Operation
 
 
@@ -43,6 +43,7 @@ class ModuleManager(QObject):
 
     def __init__(self, parent):
         super().__init__(parent)
+        signal_manager['modulesUpdated'] = self.modulesUpdated
         self.__modules = {x: CustomModule(x) for x in FILE_NAMES}
         self.__operations = {}
 
@@ -56,21 +57,24 @@ class ModuleManager(QObject):
         return self.__operations
 
     def attempt_import(self, module_name: str) -> None:
+        self.__modules[module_name].importing = True
         worker = ModuleImporter(module_name, self)
         worker.moduleImported.connect(self.__handle_success)
         worker.importError.connect(self.__handle_error)
         worker.start()
 
     def __handle_success(self, module_name: str, result: list[Type[Operation]]) -> None:
+        self.__modules[module_name].importing = False
         for i in result:
             self.__operations[i.name] = i
         self.__modules[module_name].imported = True
         self.modulesUpdated.emit()
 
-    def __handle_error(self, name: str, e: Exception) -> None:
-        if isinstance(e, ModuleNotFoundError):
-            self.__modules[name].dependencies.append(e.name)
+    def __handle_error(self, module_name: str, e: Exception) -> None:
+        self.__modules[module_name].importing = False
         print(e)
+        if isinstance(e, ModuleNotFoundError):
+            self.__modules[module_name].dependencies.append(e.name)
         self.modulesUpdated.emit()
 
 
@@ -78,6 +82,7 @@ class CustomModule:
     def __init__(self, name: str):
         self.__name = name
         self.__imported = False
+        self.__importing = False
         self.__dependencies = []
         self.__operations = []
 
@@ -90,6 +95,10 @@ class CustomModule:
         return self.__imported
 
     @property
+    def importing(self) -> bool:
+        return self.__importing
+
+    @property
     def dependencies(self) -> list[str]:
         return self.__dependencies
 
@@ -100,4 +109,8 @@ class CustomModule:
     @imported.setter
     def imported(self, value: bool) -> None:
         self.__imported = value
+
+    @importing.setter
+    def importing(self, value: bool) -> None:
+        self.__importing = value
 

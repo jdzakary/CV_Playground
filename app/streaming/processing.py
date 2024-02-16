@@ -12,37 +12,19 @@ from app.general.layouts import FlowLayout
 from app.general.text import Label
 
 
-class Operation(ABC):
+class Operation:
     """
     Abstract Class for any CV/IP operation that is performed
     on the frame stream. All operations must implant the required
     properties, attributes, and methods
     """
+    name = 'Abstract Operation'
+    description = 'Replace me please'
+    InitializeInSeparateThread = False
 
     def __init__(self):
         self.__params: list[Parameter] = []
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """
-        Defines the name of the Image Processing Operation.
-        Should be unique across all operations
-        :return:
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """
-        The description of the image processing operation.
-        Should be informative but not very long.
-        :return:
-        """
-        pass
-
-    @abstractmethod
     def execute(self, frame: np.ndarray) -> np.ndarray:
         """
         Main logic of the operation. Receives a frame from the processing
@@ -51,6 +33,10 @@ class Operation(ABC):
         :return: Processed image (BGR colors).
         """
         pass
+
+    def create_controls(self):
+        for i in self.__params:
+            i.create_master()
 
     @staticmethod
     def frame_bgr_to_rgb(frame: np.ndarray) -> np.ndarray:
@@ -87,10 +73,12 @@ class Parameter(ABC):
     """
     def __init__(self, name: str) -> None:
         self.__name = name
+
+    def create_master(self) -> None:
         self.__component = QWidget(None)
         layout = QVBoxLayout()
         layout.addWidget(Label(self.__name, LabelLevel.H4))
-        layout.addWidget(self._component)
+        layout.addWidget(self.create_child())
         self.__component.setLayout(layout)
 
     @property
@@ -101,9 +89,8 @@ class Parameter(ABC):
         """
         return self.__component
 
-    @property
     @abstractmethod
-    def _component(self) -> QWidget:
+    def create_child(self) -> QWidget:
         """
         The Component to be rendered in the tool window
         :return: A pyqt Widget
@@ -125,30 +112,39 @@ class Slider(Parameter):
         default: int = None,
         divisor: int = 1,
     ) -> None:
-        self.__slider = QSlider()
-        self.__slider.setRange(minimum, maximum)
-        self.__slider.setValue(minimum)
-        self.__slider.setTickInterval(step)
-        self.__slider.setSingleStep(step)
-        self.__slider.valueChanged.connect(self.__change_slider)
-        self.__slider.setOrientation(Qt.Horizontal)
+        self.__min = minimum
+        self.__max = maximum
+        self.__step = step
+        self.__name = name
+        self.__default = default
         self.__divisor = divisor
 
+        super().__init__(name=name)
+
+    def create_child(self) -> QWidget:
+        self.__slider = QSlider()
+        self.__slider.setRange(self.__min, self.__max)
+        self.__slider.setValue(self.__min)
+        self.__slider.setTickInterval(self.__step)
+        self.__slider.setSingleStep(self.__step)
+        self.__slider.valueChanged.connect(self.__change_slider)
+        self.__slider.setOrientation(Qt.Horizontal)
+
+        component = QWidget(None)
         self.__number = Label(
-            f'{minimum / self.__divisor}',
+            f'{self.__min / self.__divisor}',
             LabelLevel.P
         )
-        self.__component = QWidget(None)
         self.__minimum = Label(
-            f'{minimum / self.__divisor}',
+            f'{self.__min / self.__divisor}',
             LabelLevel.P
         )
         self.__maximum = Label(
-            f'{maximum / self.__divisor}',
+            f'{self.__max / self.__divisor}',
             LabelLevel.P
         )
-        if default is not None:
-            self.__slider.setValue(default)
+        if self.__default is not None:
+            self.__slider.setValue(self.__default)
 
         l1 = QHBoxLayout()
         l1.addWidget(Label('Current Value:', LabelLevel.P))
@@ -157,12 +153,8 @@ class Slider(Parameter):
         l1.addWidget(self.__minimum)
         l1.addWidget(self.__slider)
         l1.addWidget(self.__maximum)
-        self.__component.setLayout(l1)
-        super().__init__(name=name)
-
-    @property
-    def _component(self) -> QWidget:
-        return self.__component
+        component.setLayout(l1)
+        return component
 
     @property
     def slider(self) -> QSlider:
@@ -243,9 +235,15 @@ class Slider(Parameter):
 
 class Boolean(Parameter):
     def __init__(self, label_true: str, label_false: str, name: str = ''):
-        self.__component = QWidget(None)
-        self.__button_true = QRadioButton(label_true)
-        self.__button_false = QRadioButton(label_false)
+        self.__label_true = label_true
+        self.__label_false = label_false
+        setting.add_font_callback(self.adjust_fonts)
+        super().__init__(name=name)
+
+    def create_child(self) -> QWidget:
+        component = QWidget(None)
+        self.__button_true = QRadioButton(self.__label_true)
+        self.__button_false = QRadioButton(self.__label_false)
         self.__button_true.clicked.connect(self.__change_button)
         self.__button_false.clicked.connect(self.__change_button)
         self.__status = False
@@ -254,15 +252,9 @@ class Boolean(Parameter):
         l1 = QHBoxLayout()
         l1.addWidget(self.__button_true)
         l1.addWidget(self.__button_false)
-        self.__component.setLayout(l1)
-
-        setting.add_font_callback(self.adjust_fonts)
+        component.setLayout(l1)
         self.adjust_fonts()
-        super().__init__(name=name)
-
-    @property
-    def _component(self) -> QWidget:
-        return self.__component
+        return component
 
     @property
     def status(self) -> bool:
@@ -287,27 +279,28 @@ class SingleSelect(Parameter):
     def __init__(self, labels: list[str], name: str = '') -> None:
         if not len(labels):
             raise Exception("No labels given")
-        self.__component = QWidget(None)
+        self.__labels = labels
+        setting.add_font_callback(self.adjust_fonts)
+
+        super().__init__(name=name)
+
+    def create_child(self) -> QWidget:
+        component = QWidget(None)
         self.__group = QButtonGroup(self.__component)
         layout = FlowLayout()
 
-        for i, label in enumerate(labels):
+        for i, label in enumerate(self.__labels):
             radio = QRadioButton(label)
             self.__group.addButton(radio)
             layout.addWidget(radio)
             if i == 0:
                 radio.setChecked(True)
 
-        self.__status = labels[0]
+        self.__status = self.__labels[0]
         self.__component.setLayout(layout)
         self.__group.buttonClicked.connect(self.__change_button)
-        setting.add_font_callback(self.adjust_fonts)
         self.adjust_fonts()
-        super().__init__(name=name)
-
-    @property
-    def _component(self) -> QWidget:
-        return self.__component
+        return component
 
     @property
     def status(self) -> str:

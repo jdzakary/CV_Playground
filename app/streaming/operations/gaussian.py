@@ -1,7 +1,12 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import cv2
-import numpy as np
 
 from app.streaming.processing import Operation, Slider
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class GaussianBlur(Operation):
