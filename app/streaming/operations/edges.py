@@ -1,7 +1,12 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import cv2
-import numpy as np
 
 from app.streaming.processing import Operation, Slider, Boolean
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class CannyEdges(Operation):
@@ -14,13 +19,15 @@ class CannyEdges(Operation):
             minimum=50,
             maximum=200,
             step=10,
-            name='Lower Threshold'
+            name='Lower Threshold',
+            default=100,
         )
         self.__thresh_2 = Slider(
-            minimum=200,
+            minimum=100,
             maximum=300,
             step=10,
             name='Upper Threshold',
+            default=200
         )
         self.__show_frames = Boolean(
             label_true='Show Frames',

@@ -91,7 +91,10 @@ class ECE4354EdgeDetectors(Operation):
                 return cv2.filter2D(frame, -1, k)
             case 'LoG':
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float64)
-                return gaussian_laplace(gray, sigma=self.__logSigma.number).astype(np.uint8)
+                return gaussian_laplace(
+                    input=gray,
+                    sigma=self.__logSigma.number
+                ).astype(np.uint8)
             case 'Roberts':
                 kx = np.array([[1, 0], [0, -1]])
                 ky = np.array([[0, 1], [-1, 0]])

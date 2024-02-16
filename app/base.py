@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import QMainWindow, QMenuBar, QMenu, QAction
 
 from app.config import setting
 from app.structure.central import CentralWidget
-from app.structure.docks import ManageOperators
+from app.streaming.docks import ManageOperators
 
 
 class BaseWindow(QMainWindow):
@@ -20,8 +20,6 @@ class BaseWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.manage_ops)
 
         # Window Setup
-        self.manage_ops.update_operations = self.central_widget.stream.process.change_operations
-        self.central_widget.stream.process.update_latency.connect(self.manage_ops.update_latency)
         self.setWindowTitle(title)
         self.setCentralWidget(self.central_widget)
         self.showMaximized()
