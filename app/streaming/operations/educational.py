@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from scipy.ndimage import gaussian_laplace
 
-from app.streaming.processing import Operation, SingleSelect, Slider
+from app.streaming.processing import Operation, SingleSelect, NewSlider
 
 
 class ECE4354Gradients(Operation):
@@ -54,7 +54,7 @@ class ECE4354EdgeDetectors(Operation):
             ],
             name='Detector Type'
         )
-        self.__logSigma = Slider(1, 8, name='LoG Sigma')
+        self.__logSigma = NewSlider(1, 8, name='LoG Sigma')
         self.params.append(self.__options)
         self.params.append(self.__logSigma)
         self.__kirsch = [

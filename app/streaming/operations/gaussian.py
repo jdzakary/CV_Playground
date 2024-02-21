@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from app.streaming.processing import Operation, Slider
+from app.streaming.processing import Operation, NewSlider
 
 if TYPE_CHECKING:
     import numpy as np
@@ -15,19 +15,14 @@ class GaussianBlur(Operation):
 
     def __init__(self):
         super().__init__()
-        self.__sigma = Slider(
+        self.__sigma = NewSlider(
             minimum=1,
             maximum=10,
-            step=1,
+            step=0.5,
             name='Sigma',
             default=1,
-            divisor=2,
         )
-        self.params.append(self.sigma)
-
-    @property
-    def sigma(self) -> Slider:
-        return self.__sigma
+        self.params.append(self.__sigma)
 
     def execute(self, frame: np.ndarray) -> np.ndarray:
-        return cv2.GaussianBlur(frame, (0, 0), self.sigma.number)
+        return cv2.GaussianBlur(frame, (0, 0), self.__sigma.number)

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from ultralytics import YOLO
 
-from app.streaming.processing import Operation, Slider
+from app.streaming.processing import Operation, NewSlider
 
 if TYPE_CHECKING:
     import numpy as np
@@ -19,10 +19,10 @@ class YoloObjectSegmentation(Operation):
         super().__init__()
         self.__model = YOLO('assets/yolov8n-seg.pt')
         self.__model.cuda(0)
-        self.__conf = Slider(
+        self.__conf = NewSlider(
             minimum=1,
             maximum=100,
-            step=1,
+            step=0.5,
             name='Confidence',
             default=80,
         )
@@ -50,10 +50,10 @@ class YoloObjectDetect(Operation):
         super().__init__()
         self.__model = YOLO('assets/yolov8n.pt')
         self.__model.cuda(0)
-        self.__conf = Slider(
+        self.__conf = NewSlider(
             minimum=1,
             maximum=100,
-            step=1,
+            step=0.5,
             name='Confidence',
             default=80,
         )

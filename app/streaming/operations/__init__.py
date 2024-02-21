@@ -5,11 +5,12 @@ from importlib import import_module
 from inspect import isclass
 from typing import Type
 
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, QSize
+from PyQt5.QtWidgets import QMessageBox, QGridLayout
 
 from app.data.general import signal_manager
 from app.streaming.processing import Operation
-
+from app.structure.errors import error_report
 
 FILE_NAMES = [
     x[:-3] for x in os.listdir(os.path.dirname(__file__))
@@ -72,10 +73,10 @@ class ModuleManager(QObject):
 
     def __handle_error(self, module_name: str, e: Exception) -> None:
         self.__modules[module_name].importing = False
-        print(e)
         if isinstance(e, ModuleNotFoundError):
             self.__modules[module_name].dependencies.append(e.name)
         self.modulesUpdated.emit()
+        error_report(e, 'An error occurred during module import')
 
 
 class CustomModule:

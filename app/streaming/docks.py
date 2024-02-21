@@ -2,11 +2,11 @@ from __future__ import annotations
 from functools import partial
 from typing import Type
 
-from PyQt5.QtCore import Qt, QModelIndex, QThread, pyqtSignal, QCoreApplication
+from PyQt5.QtCore import Qt, QModelIndex, QThread, pyqtSignal, QCoreApplication, QSize
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
     QTabBar, QVBoxLayout,
-    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QGridLayout,
+    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QGridLayout, QMessageBox,
 )
 
 from app.config import setting
@@ -18,6 +18,7 @@ from app.general.spinner import Spinner
 from app.general.text import Label
 from app.streaming.operations import ModuleManager
 from app.streaming.processing import Operation
+from app.structure.errors import error_report
 
 
 class OperatorListItem(QWidget):
@@ -284,6 +285,6 @@ class ManageOperators(QDockWidget):
         self.__tab_configure()
 
     def __handle_init_error(self, e: Exception) -> None:
-        print(f'An error occurred! {e}')
         self.__add.setEnabled(True)
         self.__opp_loading.setHidden(True)
+        error_report(e, 'An error occurred during initialization')

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from typing import Callable
 
 import cv2
 import numpy as np
@@ -24,6 +26,7 @@ class Operation:
 
     def __init__(self):
         self.__params: list[Parameter] = []
+        self.__child_functions = []
 
     def execute(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -37,6 +40,8 @@ class Operation:
     def create_controls(self):
         for i in self.__params:
             i.create_master()
+        for i in self.__child_functions:
+            i()
 
     @staticmethod
     def frame_bgr_to_rgb(frame: np.ndarray) -> np.ndarray:
@@ -63,6 +68,16 @@ class Operation:
         :return:
         """
         return self.__params
+
+    @property
+    def child_functions(self) -> list:
+        """
+        Used to link parameters together.
+        For example, the two sliders in a canny edge detector are linked
+        such that the value of the slider threshold is the minimum of the upper slider
+        :return:
+        """
+        return self.__child_functions
 
 
 class Parameter(ABC):
@@ -98,139 +113,111 @@ class Parameter(ABC):
         pass
 
 
-class Slider(Parameter):
-    """
-    A numeric variable that can be adjusted using a slider.
-    Qt Sliders can only use integer values. If
-    """
+class NewSlider(Parameter):
     def __init__(
         self,
-        minimum: int,
-        maximum: int,
-        step: int = 1,
-        name: str = '',
-        default: int = None,
-        divisor: int = 1,
-    ) -> None:
-        self.__min = minimum
-        self.__max = maximum
+        maximum: float,
+        minimum: float,
+        step: float = 1,
+        default: float = None,
+        name: str = ''
+    ):
+        self.__minimum = minimum
+        self.__maximum = maximum
         self.__step = step
-        self.__name = name
+        self.__number = minimum
         self.__default = default
-        self.__divisor = divisor
-
         super().__init__(name=name)
-
-    def create_child(self) -> QWidget:
-        self.__slider = QSlider()
-        self.__slider.setRange(self.__min, self.__max)
-        self.__slider.setValue(self.__min)
-        self.__slider.setTickInterval(self.__step)
-        self.__slider.setSingleStep(self.__step)
-        self.__slider.valueChanged.connect(self.__change_slider)
-        self.__slider.setOrientation(Qt.Horizontal)
-
-        component = QWidget(None)
-        self.__number = Label(
-            f'{self.__min / self.__divisor}',
-            LabelLevel.P
-        )
-        self.__minimum = Label(
-            f'{self.__min / self.__divisor}',
-            LabelLevel.P
-        )
-        self.__maximum = Label(
-            f'{self.__max / self.__divisor}',
-            LabelLevel.P
-        )
-        if self.__default is not None:
-            self.__slider.setValue(self.__default)
-
-        l1 = QHBoxLayout()
-        l1.addWidget(Label('Current Value:', LabelLevel.P))
-        l1.addWidget(self.__number)
-        l1.addSpacing(35)
-        l1.addWidget(self.__minimum)
-        l1.addWidget(self.__slider)
-        l1.addWidget(self.__maximum)
-        component.setLayout(l1)
-        return component
 
     @property
     def slider(self) -> QSlider:
-        """
-        Refernce to the slider object
-        :return:
-        """
         return self.__slider
 
     @property
     def number(self) -> float:
-        """
-        The value of the parameter
-        :return:
-        """
-        return float(self.__number.text())
+        return self.__number
 
     @number.setter
-    def number(self, value: int):
-        self.__number.setText(f'{value / self.__divisor}')
+    def number(self, value: float):
+        if self.__maximum < value:
+            raise Exception('Cannot set number above maximum!')
+        if self.__minimum > value:
+            raise Exception('Cannot set number below minimum!')
+        self.__number = value
+        self.__slider.setValue(self.__number_to_slider(value))
 
     @property
-    def minimum(self) -> Label:
-        """
-        The label object that communicates the minimum
-        :return:
-        """
+    def minimum(self) -> float:
         return self.__minimum
 
     @minimum.setter
-    def minimum(self, value: int):
-        """
-        Changes the minimum value.
-        This involves changing the label text, setting the slider min,
-        and possibly changing the slider value.
-        :param value:
-        :return:
-        """
-        if float(self.maximum.text()) <= value / self.__divisor:
-            raise Exception('Minimum cannot exceed maximum!')
-        if self.__slider.value() <= value:
-            self.__slider.setValue(value)
-        self.__slider.setMinimum(value)
-        self.__minimum.setText(f'{value / self.__divisor}')
+    def minimum(self, value: float):
+        self.__minimum = value
+        start, stop = self.__calculate_endpoints()
+        self.__slider.setRange(start, stop)
+        self.__update_labels()
+        if value > self.__number:
+            self.number = value
 
     @property
-    def maximum(self):
-        """
-        The label object that communicates the maximum
-        :return:
-        """
+    def maximum(self) -> float:
         return self.__maximum
 
     @maximum.setter
-    def maximum(self, value):
-        """
-        Changes the maximum value.
-        This involves changing the label text, setting slider max,
-        and possible updating the slider value.
-        :param value:
-        :return:
-        """
-        if float(self.minimum.text()) >= value / self.__divisor:
-            raise Exception('Maximum cannot be lower than minimum!')
-        if self.__slider.value() >= value:
-            self.__slider.setValue(value)
-        self.__slider.setMaximum(value)
-        self.__maximum.setText(f'{value / self.__divisor}')
+    def maximum(self, value: float):
+        self.__maximum = value
+        start, stop = self.__calculate_endpoints()
+        self.__slider.setRange(start, stop)
+        self.__update_labels()
+        if value < self.__number:
+            self.number = value
 
-    def __change_slider(self, value: int):
-        """
-        Callback connected to the slider.valueChanged slot
-        :param value:
-        :return:
-        """
-        self.number = value
+    def __calculate_endpoints(self) -> tuple[int, int]:
+        steps = (self.__maximum - self.__minimum) / self.__step
+        return 1, int(1 + steps//1)
+
+    def __slider_changed(self, value: int) -> None:
+        self.__number = self.__slider_to_number(value)
+        self.__update_labels()
+
+    def __update_labels(self) -> None:
+        self.__label_max.setText(f'{self.__maximum:.1f}')
+        self.__label_number.setText(f'{self.__number:.1f}')
+        self.__label_min.setText(f'{self.__minimum:.1f}')
+
+    def __slider_to_number(self, value: int) -> float:
+        start, stop = self.__calculate_endpoints()
+        return (value - start) * self.__step + self.__minimum
+
+    def __number_to_slider(self, value: float) -> int:
+        start, stop = self.__calculate_endpoints()
+        return int((value - self.__minimum) / self.__step) + start
+
+    def create_child(self) -> QWidget:
+        start, stop = self.__calculate_endpoints()
+        self.__slider = QSlider()
+        self.__slider.setRange(start, stop)
+        self.__slider.setValue(start)
+        self.__slider.valueChanged.connect(self.__slider_changed)
+        self.__slider.setOrientation(Qt.Horizontal)
+
+        component = QWidget(None)
+        self.__label_number = Label(f'{self.__number:.1f}', LabelLevel.P)
+        self.__label_min = Label(f'{self.__minimum:.1f}', LabelLevel.P)
+        self.__label_max = Label(f'{self.__maximum:.1f}', LabelLevel.P)
+
+        if self.__default is not None:
+            self.number = self.__default
+
+        l1 = QHBoxLayout()
+        l1.addWidget(Label('Current Value:', LabelLevel.P))
+        l1.addWidget(self.__label_number)
+        l1.addSpacing(35)
+        l1.addWidget(self.__label_min)
+        l1.addWidget(self.__slider)
+        l1.addWidget(self.__label_max)
+        component.setLayout(l1)
+        return component
 
 
 class Boolean(Parameter):
