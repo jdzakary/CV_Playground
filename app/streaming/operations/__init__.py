@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from importlib import import_module
+import sys
+from importlib import import_module, reload
 from inspect import isclass
 from typing import Type
 
@@ -30,7 +31,10 @@ class ModuleImporter(QThread):
         result = []
         # noinspection PyBroadException
         try:
-            module = import_module(f'app.streaming.operations.{self.__module_name}')
+            if mod := sys.modules.get(f'app.streaming.operations.{self.__module_name}', False):
+                module = reload(mod)
+            else:
+                module = import_module(f'app.streaming.operations.{self.__module_name}')
             for value in module.__dict__.values():
                 if isclass(value) and issubclass(value, Operation) and value != Operation:
                     result.append(value)

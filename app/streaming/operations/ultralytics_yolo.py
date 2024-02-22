@@ -22,7 +22,7 @@ class YoloObjectSegmentation(Operation):
         self.__conf = NewSlider(
             minimum=1,
             maximum=100,
-            step=0.5,
+            step=1,
             name='Confidence',
             default=80,
         )
@@ -53,7 +53,7 @@ class YoloObjectDetect(Operation):
         self.__conf = NewSlider(
             minimum=1,
             maximum=100,
-            step=0.5,
+            step=1,
             name='Confidence',
             default=80,
         )

@@ -92,7 +92,9 @@ class LoadTab(QWidget):
             button: QPushButton = self.__grid.itemAtPosition(row, 1).widget()
             spinner: Spinner = self.__grid.itemAtPosition(row, 2).widget()
             spinner.setHidden(not module.importing)
-            button.setDisabled(module.imported | module.importing)
+            button.setDisabled(module.importing)
+            if module.imported:
+                button.setText("Re-Load File")
 
         for file in self.__module_manager.modules.values():
             if len(file.dependencies):

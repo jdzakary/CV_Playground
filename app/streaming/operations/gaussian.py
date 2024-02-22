@@ -21,6 +21,7 @@ class GaussianBlur(Operation):
             step=0.5,
             name='Sigma',
             default=1,
+            label_precision=1,
         )
         self.params.append(self.__sigma)
 

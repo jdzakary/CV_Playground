@@ -120,13 +120,16 @@ class NewSlider(Parameter):
         minimum: float,
         step: float = 1,
         default: float = None,
-        name: str = ''
+        name: str = '',
+        label_precision: int = 0,
     ):
         self.__minimum = minimum
         self.__maximum = maximum
         self.__step = step
         self.__number = minimum
         self.__default = default
+        self.__label_precision = label_precision
+
         super().__init__(name=name)
 
     @property
@@ -181,9 +184,9 @@ class NewSlider(Parameter):
         self.__update_labels()
 
     def __update_labels(self) -> None:
-        self.__label_max.setText(f'{self.__maximum:.1f}')
-        self.__label_number.setText(f'{self.__number:.1f}')
-        self.__label_min.setText(f'{self.__minimum:.1f}')
+        self.__label_max.setText(f'{self.__maximum:.{self.__label_precision}f}')
+        self.__label_number.setText(f'{self.__number:.{self.__label_precision}f}')
+        self.__label_min.setText(f'{self.__minimum:.{self.__label_precision}f}')
 
     def __slider_to_number(self, value: int) -> float:
         start, stop = self.__calculate_endpoints()
@@ -202,9 +205,9 @@ class NewSlider(Parameter):
         self.__slider.setOrientation(Qt.Horizontal)
 
         component = QWidget(None)
-        self.__label_number = Label(f'{self.__number:.1f}', LabelLevel.P)
-        self.__label_min = Label(f'{self.__minimum:.1f}', LabelLevel.P)
-        self.__label_max = Label(f'{self.__maximum:.1f}', LabelLevel.P)
+        self.__label_number = Label(f'{self.__number:.{self.__label_precision}f}', LabelLevel.P)
+        self.__label_min = Label(f'{self.__minimum:.{self.__label_precision}f}', LabelLevel.P)
+        self.__label_max = Label(f'{self.__maximum:.{self.__label_precision}f}', LabelLevel.P)
 
         if self.__default is not None:
             self.number = self.__default
@@ -273,7 +276,7 @@ class SingleSelect(Parameter):
 
     def create_child(self) -> QWidget:
         component = QWidget(None)
-        self.__group = QButtonGroup(self.__component)
+        self.__group = QButtonGroup(component)
         layout = FlowLayout()
 
         for i, label in enumerate(self.__labels):
@@ -284,7 +287,7 @@ class SingleSelect(Parameter):
                 radio.setChecked(True)
 
         self.__status = self.__labels[0]
-        self.__component.setLayout(layout)
+        component.setLayout(layout)
         self.__group.buttonClicked.connect(self.__change_button)
         self.adjust_fonts()
         return component
