@@ -1,6 +1,5 @@
 import json
-import os
-from typing import Callable
+from typing import Callable, Any
 from PyQt5.QtGui import QFont
 
 from app.general.enums import LabelLevel
@@ -85,6 +84,11 @@ class Settings:
             LabelLevel(k): Font(**v, callback=self.update_font) for (k, v) in data['fonts'].items()
         }
         self.__font_callbacks: list[Callable] = []
+        self.__streaming: dict[str, Any] = data['streaming']
+
+    @property
+    def streaming(self) -> dict[str, Any]:
+        return self.__streaming
 
     @property
     def fonts(self) -> dict[LabelLevel, Font]:
@@ -122,18 +126,28 @@ class Settings:
         Load settings from disk
         :return:
         """
-        with open('app/settings.json', 'r') as file:
-            return json.load(file)
+        with open('app/default_settings.json', 'r') as file:
+            default: dict = json.load(file)
+        try:
+            with open('app/personal_settings.json', 'r') as file:
+                personal: dict = json.load(file)
+        except FileNotFoundError:
+            return default
+
+        for key in default:
+            default[key] = personal.get(key, default[key])
+        return default
 
     def dump_settings(self):
         """
         Dump settings to file when the user closes the program
         :return:
         """
-        data = dict(
-            fonts={k.value: v.to_json() for (k, v) in self.fonts.items()}
-        )
-        with open('app/settings.json', 'w') as file:
+        data = {
+            'fonts': {k.value: v.to_json() for (k, v) in self.__fonts.items()},
+            'streaming': self.__streaming
+        }
+        with open('app/personal_settings.json', 'w') as file:
             json.dump(data, file, indent=2)
 
 

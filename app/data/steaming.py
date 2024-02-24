@@ -55,7 +55,7 @@ class StreamDataManager(DataManager):
     def __init__(self):
         self.__streaming = False
         self.__recording = False
-        self.__frame_size = (640, 640)
+        self.__frame_size = (640, 480)
         self.__fps = 20
         self.__file_name = 'video_out.avi'
         self.__video_width = 640

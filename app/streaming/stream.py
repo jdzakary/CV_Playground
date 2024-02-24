@@ -5,16 +5,18 @@ import time
 
 import cv2
 import numpy as np
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QSlider,
-    QHBoxLayout, QSpinBox, QPushButton, QFileDialog,
+    QHBoxLayout, QSpinBox, QPushButton, QFileDialog, QSizePolicy,
 )
 
+from app.config import setting
 from app.data.general import signal_manager
 from app.data.steaming import StreamDataManager, FrameStack, stream_operations
-from app.general.spinner import Spinner
+from app.general.loading_spinner import LoadingSpinner
+from app.general.number_spinner import CustomSpinBox
 from app.general.stats import SimpleAvg
 from app.general.text import Label
 from app.general.enums import LabelLevel
@@ -30,7 +32,7 @@ class CreateCaptureDevice(QThread):
 
     def run(self) -> None:
         while True:
-            capture = cv2.VideoCapture(self.__video_index)
+            capture = cv2.VideoCapture(self.__video_index, cv2.CAP_DSHOW)
             ret, frame = capture.read()
             if ret:
                 break
@@ -138,7 +140,7 @@ class ProcessThread(QThread):
     Thread responsible for applying the real-time CV operations.
     After all operations, sends image data to be displayed by the main thread.
     """
-    update_image = pyqtSignal(QImage, name='update_image')
+    update_image = pyqtSignal(QPixmap, name='update_image')
     frame_stack_depth = pyqtSignal(int, name='frame_stack_depth')
     update_latency = pyqtSignal(list, name='update_latency')
     update_fps = pyqtSignal(float, name='update_fps')
@@ -209,7 +211,7 @@ class ProcessThread(QThread):
                     previous_2 = now
                     self.frame_stack_depth.emit(len(self.__frame_stack))
 
-    def __create_picture(self, frame: np.ndarray) -> QImage:
+    def __create_picture(self, frame: np.ndarray) -> QPixmap:
         """
         Convert OpenCV frame to Qt Image Object.
         Qt Image objects are applied to a QLabel to create the appearance of a streaming
@@ -223,13 +225,15 @@ class ProcessThread(QThread):
         rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
-        convert_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        p = convert_format.scaled(
-            self.__stream_data.video_width,
-            self.__stream_data.video_width,
-            Qt.KeepAspectRatio
-        )
-        return p
+
+        image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        pixmap = QPixmap()
+        pixmap: QPixmap = pixmap.fromImage(image, Qt.AutoColor)
+
+        ratio = self.parent().devicePixelRatio()
+        pixmap = pixmap.scaledToWidth(int(self.__stream_data.video_width * ratio))
+        pixmap.setDevicePixelRatio(ratio)
+        return pixmap
 
     def __create_writer(self, initial: bool = False):
         writer = cv2.VideoWriter(
@@ -275,14 +279,15 @@ class StreamControls(QWidget):
 
         # Property Setup
         self.__stream_data = StreamDataManager()
-        self.__slider = QSlider(self)
-        self.__spinner = QSpinBox(self)
+        self.__set_video_display_width = CustomSpinBox(self)
+        self.__set_video_index = CustomSpinBox(self)
         self.__toggle_recording = QPushButton('Start Recording')
         self.__toggle_streaming = QPushButton('Start Streaming')
         self.__file_location = QPushButton('Change Save Location')
+        self.__save_default_width = QPushButton('Save As Default')
         self.__frame_stack_depth = Label('Frames in Stack: 0', LabelLevel.P)
         self.__fps = Label('FPS: 0', LabelLevel.P)
-        self.__streaming_loading = Spinner(self)
+        self.__streaming_loading = LoadingSpinner(self)
 
         # Replace Listeners
         self.__stream_data.replace_listener('toggleRecording', self.__set_recording)
@@ -292,10 +297,11 @@ class StreamControls(QWidget):
         # Proxy Signals
         self.__toggle_streaming.clicked.connect(self.__proxy_toggle_stream)
         self.__toggle_recording.clicked.connect(self.__proxy_toggle_recording)
+        self.__save_default_width.clicked.connect(self.__proxy_save_width)
 
         # Register Signals
-        signal_manager['setVideoWidth'] = self.__slider.valueChanged
-        signal_manager['setVideoIndex'] = self.__spinner.valueChanged
+        signal_manager['setVideoWidth'] = self.__set_video_display_width.newValue
+        signal_manager['setVideoIndex'] = self.__set_video_index.newValue
         signal_manager['launchFileDialog'] = self.__file_location.clicked
         signal_manager['toggleStream'] = self.toggleStream
         signal_manager['toggleRecording'] = self.toggleRecording
@@ -305,7 +311,7 @@ class StreamControls(QWidget):
         signal_manager['update_fps'].connect(self.__update_fps)
 
         # Widget Setup
-        self.__setup()
+        self.__setup(gap=20)
 
     def __control_1(self, gap: int) -> QHBoxLayout:
         """
@@ -315,13 +321,13 @@ class StreamControls(QWidget):
         :return:
         """
         layout = QHBoxLayout()
-        self.__slider.setRange(500, 1500)
-        self.__slider.setSingleStep(10)
-        self.__slider.setValue(800)
-        self.__slider.setOrientation(Qt.Horizontal)
-        label = Label('Adjust Video Size', LabelLevel.H4)
-        layout.addWidget(label)
-        layout.addWidget(self.__slider)
+        self.__set_video_display_width.setRange(200, 800)
+        self.__set_video_display_width.setSingleStep(4)
+        self.__set_video_display_width.setValue(640)
+
+        layout.addWidget(Label('Display Size', LabelLevel.H4))
+        layout.addWidget(self.__set_video_display_width)
+        layout.addWidget(self.__save_default_width)
         layout.setAlignment(Qt.AlignLeft)
         layout.setSpacing(gap)
         return layout
@@ -329,15 +335,15 @@ class StreamControls(QWidget):
     def __control_2(self, gap: int) -> QHBoxLayout:
         """
         Control set 2:
-            Spinner that selects the capture device.
+            LoadingSpinner that selects the capture device.
             Button to toggle recording
             File picker to choose recording output
         :param gap:
         :return:
         """
         layout = QHBoxLayout()
-        self.__spinner.setMinimum(0)
-        self.__spinner.setValue(0)
+        self.__set_video_index.setMinimum(0)
+        self.__set_video_index.setValue(0)
         self.__toggle_recording.setDisabled(True)
         self.__streaming_loading.hide()
         l1 = QHBoxLayout()
@@ -346,7 +352,7 @@ class StreamControls(QWidget):
         l1.setSpacing(5)
 
         layout.addWidget(Label('Select Capture Device:', LabelLevel.H4))
-        layout.addWidget(self.__spinner)
+        layout.addWidget(self.__set_video_index)
         layout.addLayout(l1)
         layout.addWidget(self.__toggle_recording)
         layout.addWidget(self.__file_location)
@@ -378,6 +384,7 @@ class StreamControls(QWidget):
         l1.addLayout(self.__control_1(gap))
         l1.addLayout(self.__control_2(gap))
         l1.addLayout(self.__stats(gap))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self.setLayout(l1)
 
     def frame_stack_update(self, value: int):
@@ -386,12 +393,12 @@ class StreamControls(QWidget):
     def __set_recording(self, value: bool) -> None:
         if value:
             self.__toggle_recording.setText('Stop Recording')
-            self.__spinner.setDisabled(True)
+            self.__set_video_index.setDisabled(True)
             self.__file_location.setDisabled(True)
             self.__toggle_streaming.setDisabled(True)
         else:
             self.__toggle_recording.setText('Start Recording')
-            self.__spinner.setDisabled(False)
+            self.__set_video_index.setDisabled(False)
             self.__file_location.setDisabled(False)
             self.__toggle_streaming.setDisabled(False)
         self.__stream_data.set_recording(value)
@@ -407,6 +414,9 @@ class StreamControls(QWidget):
     def __proxy_toggle_recording(self) -> None:
         if not self.__stream_data.device_loading:
             self.toggleRecording.emit(not self.__stream_data.recording)
+
+    def __proxy_save_width(self) -> None:
+        setting.streaming['video_display_width'] = self.__set_video_display_width.value()
 
     def __set_device_loading(self, value: bool) -> None:
         if value:
@@ -481,14 +491,14 @@ class StreamWidget(QWidget):
         """
         return self.__controls
 
-    def update_image(self, image: QImage):
+    @pyqtSlot(QPixmap, name='update_image')
+    def update_image(self, pixmap: QPixmap):
         """
         Callback to update the pixmap of the streaming object
         :param image:
         :return:
         """
-        pixmap = QPixmap()
-        self.__video.setPixmap(pixmap.fromImage(image, Qt.AutoColor))
+        self.__video.setPixmap(pixmap)
 
     def __start_threads(self) -> None:
         """
@@ -521,10 +531,7 @@ class StreamWidget(QWidget):
             self.setFileName.emit(file_name)
 
     def __set_video_placeholder(self) -> None:
-        file = QPixmap('assets/camera_loading.png')
-        pixmap = file.scaled(
-            self.__stream_data.video_width,
-            self.__stream_data.video_width,
-            Qt.KeepAspectRatio
-        )
+        pixmap = QPixmap('assets/camera_loading.png')
+        pixmap = pixmap.scaledToWidth(400)
+        pixmap.setDevicePixelRatio(self.devicePixelRatio())
         self.__video.setPixmap(pixmap)

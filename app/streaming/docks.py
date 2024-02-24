@@ -14,7 +14,7 @@ from app.data.general import signal_manager
 from app.data.steaming import stream_operations
 from app.general.enums import LabelLevel
 from app.general.lists import CustomList
-from app.general.spinner import Spinner
+from app.general.loading_spinner import LoadingSpinner
 from app.general.text import Label
 from app.streaming.operations import ModuleManager
 from app.streaming.processing import Operation
@@ -60,7 +60,7 @@ class LoadTab(QWidget):
         l1 = QGridLayout()
 
         for row, (file, custom) in enumerate(self.__module_manager.modules.items()):
-            spinner = Spinner(self)
+            spinner = LoadingSpinner(self)
             spinner.setHidden(True)
             spinner.setAlignment(Qt.AlignHCenter)
             button = QPushButton('Load File')
@@ -90,7 +90,7 @@ class LoadTab(QWidget):
             label: Label = self.__grid.itemAtPosition(row, 0).widget()
             module = self.__module_manager.modules[label.text()]
             button: QPushButton = self.__grid.itemAtPosition(row, 1).widget()
-            spinner: Spinner = self.__grid.itemAtPosition(row, 2).widget()
+            spinner: LoadingSpinner = self.__grid.itemAtPosition(row, 2).widget()
             spinner.setHidden(not module.importing)
             button.setDisabled(module.importing)
             if module.imported:
@@ -136,7 +136,7 @@ class ManageOperators(QDockWidget):
         self.__tabs = QTabWidget(self)
         self.__load_tab = LoadTab(self)
         self.__add = QPushButton('Add Operation')
-        self.__opp_loading = Spinner(self)
+        self.__opp_loading = LoadingSpinner(self)
         self.__opp_loading.setHidden(True)
 
         self.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)

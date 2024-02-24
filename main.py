@@ -1,7 +1,10 @@
 """
 This is the main program. It imports the base window and launches the application
 """
+import os
+import sys
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 
 from app.base import BaseWindow
@@ -24,6 +27,8 @@ except ModuleNotFoundError:
     print("Missing Some Optional Modules")
 
 if __name__ == '__main__':
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = '1'
     application = QApplication([])
+    application.setAttribute(Qt.AA_UseHighDpiPixmaps)
     window = BaseWindow('CV Playground')
-    application.exec()
+    sys.exit(application.exec())

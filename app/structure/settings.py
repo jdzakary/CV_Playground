@@ -1,7 +1,8 @@
 from functools import partial
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QSpinBox, QGridLayout, QVBoxLayout, QFontDialog
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QWidget, QSpinBox, QGridLayout, QVBoxLayout, QFontComboBox
 
 from app.config import setting
 from app.general.enums import LabelLevel
@@ -29,9 +30,19 @@ class Settings(QWidget):
             spin.setValue(setting.fonts[level].point_size)
             spin.valueChanged.connect(callback)
 
+            # Font Type Selector
+            combo = QFontComboBox(self)
+            callback2 = partial(self.change_font_family, level)
+            font = QFont()
+            font.setFamily(setting.fonts[level].family)
+            font.setPointSize(setting.fonts[LabelLevel.P].point_size)
+            combo.setCurrentFont(font)
+            combo.currentFontChanged.connect(callback2)
+
             # Setup Row
             layout.addWidget(Label(level.value, level), i, 0, 1, 1)
             layout.addWidget(spin, i, 1, 1, 1)
+            layout.addWidget(combo, i, 2, 1, 1)
 
         layout.setAlignment(Qt.AlignCenter)
         layout.setColumnMinimumWidth(1, 50)
@@ -57,3 +68,7 @@ class Settings(QWidget):
         :return:
         """
         setting.fonts[level].point_size = value
+
+    @staticmethod
+    def change_font_family(level: LabelLevel, value: QFont):
+        setting.fonts[level].family = value.family()

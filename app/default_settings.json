@@ -20,5 +20,8 @@
       "point_size": 12,
       "family": "Times New Roman"
     }
+  },
+  "streaming": {
+    "video_display_width": 640
   }
 }
