@@ -6,11 +6,12 @@ from typing import Callable
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout, QSpinBox
 
 from app.config import setting
 from app.general.enums import LabelLevel
 from app.general.layouts import FlowLayout
+from app.general.number_spinner import CustomSpinBox
 from app.general.text import Label
 
 
@@ -263,6 +264,49 @@ class Boolean(Parameter):
         font = setting.fonts[LabelLevel.P].generate_q()
         self.__button_false.setFont(font)
         self.__button_true.setFont(font)
+
+
+class IntegerEntry(Parameter):
+    def __init__(
+        self,
+        name: str = '',
+        min_value: int = None,
+        max_value: int = None,
+        step: int = None,
+        default: int = None,
+    ):
+        self.__min_value = min_value
+        self.__max_value = max_value
+        self.__step = step
+        self.__default = default
+        super().__init__(name)
+
+    def create_child(self) -> QWidget:
+        component = QWidget(None)
+        self.__spinner = CustomSpinBox()
+
+        if self.__min_value is not None:
+            self.__spinner.setMinimum(self.__min_value)
+        if self.__max_value is not None:
+            self.__spinner.setMaximum(self.__max_value)
+        if self.__step is not None:
+            self.__spinner.setSingleStep(self.__step)
+        if self.__default is not None:
+            self.__spinner.setValue(self.__default)
+
+        l1 = QHBoxLayout()
+        l1.addWidget(Label('Enter Value', LabelLevel.P))
+        l1.addWidget(self.__spinner)
+        component.setLayout(l1)
+        return component
+
+    @property
+    def spin_box(self) -> CustomSpinBox:
+        return self.__spinner
+
+    @property
+    def number(self) -> int:
+        return self.__spinner.value()
 
 
 class SingleSelect(Parameter):
