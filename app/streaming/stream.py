@@ -32,7 +32,8 @@ class CreateCaptureDevice(QThread):
 
     def run(self) -> None:
         while True:
-            capture = cv2.VideoCapture(self.__video_index, cv2.CAP_DSHOW)
+            capture = cv2.VideoCapture(self.__video_index)
+            print(capture.getBackendName())
             ret, frame = capture.read()
             if ret:
                 break
@@ -238,13 +239,18 @@ class ProcessThread(QThread):
     def __create_writer(self, initial: bool = False):
         writer = cv2.VideoWriter(
             self.__stream_data.file_name,
-            cv2.VideoWriter.fourcc(*'XVID'),
+            cv2.VideoWriter.fourcc(*'mp4v'),
             self.__stream_data.fps,
             self.__stream_data.frame_size,
+            True,
         )
+        print(writer.getBackendName())
         if initial:
             writer.release()
-            os.remove('video_out.avi')
+            try:
+                os.remove('video_out.mp4')
+            except FileNotFoundError:
+                pass
             return writer
         else:
             self.__writer = writer

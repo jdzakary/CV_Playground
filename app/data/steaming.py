@@ -57,7 +57,7 @@ class StreamDataManager(DataManager):
         self.__recording = False
         self.__frame_size = (640, 480)
         self.__fps = 20
-        self.__file_name = 'video_out.avi'
+        self.__file_name = 'video_out.mp4'
         self.__video_width = 640
         self.__video_index = 0
         self.__device_loading = False
