@@ -216,7 +216,7 @@ class NewSlider(Parameter):
         l1 = QHBoxLayout()
         l1.addWidget(Label('Current Value:', LabelLevel.P))
         l1.addWidget(self.__label_number)
-        l1.addSpacing(35)
+        l1.addSpacing(15)
         l1.addWidget(self.__label_min)
         l1.addWidget(self.__slider)
         l1.addWidget(self.__label_max)

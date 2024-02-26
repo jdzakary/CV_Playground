@@ -2,11 +2,11 @@ from __future__ import annotations
 from functools import partial
 from typing import Type
 
-from PyQt5.QtCore import Qt, QModelIndex, QThread, pyqtSignal, QCoreApplication, QSize
+from PyQt5.QtCore import Qt, QModelIndex, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QHBoxLayout, QTabWidget,
     QTabBar, QVBoxLayout,
-    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QGridLayout, QMessageBox,
+    QAbstractItemView, QComboBox, QPushButton, QCompleter, QListWidgetItem, QGridLayout
 )
 
 from app.config import setting

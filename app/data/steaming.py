@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
+from app.config import setting
 from app.data.general import DataManager, signal_manager
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ class StreamDataManager(DataManager):
         self.__frame_size = (640, 480)
         self.__fps = 20
         self.__file_name = 'video_out.mp4'
-        self.__video_width = 640
+        self.__video_width = setting.streaming['video_display_width']
         self.__video_index = 0
         self.__device_loading = False
         mapping = {

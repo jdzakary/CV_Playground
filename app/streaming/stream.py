@@ -8,8 +8,8 @@ import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QSlider,
-    QHBoxLayout, QSpinBox, QPushButton, QFileDialog, QSizePolicy,
+    QWidget, QLabel, QVBoxLayout,
+    QHBoxLayout, QPushButton, QFileDialog, QSizePolicy,
 )
 
 from app.config import setting
@@ -32,8 +32,12 @@ class CreateCaptureDevice(QThread):
 
     def run(self) -> None:
         while True:
+            # TODO: Use Direct Show Backend for faster startup times
+            # The problem is that Direct Show mysteriously breaks the VideoWriter.
             capture = cv2.VideoCapture(self.__video_index)
-            print(capture.getBackendName())
+            # TODO: Add support to change the camera resolution
+            # capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            # capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             ret, frame = capture.read()
             if ret:
                 break
@@ -237,6 +241,7 @@ class ProcessThread(QThread):
         return pixmap
 
     def __create_writer(self, initial: bool = False):
+        # TODO: Figure out how to save video when Capture Device uses direct show
         writer = cv2.VideoWriter(
             self.__stream_data.file_name,
             cv2.VideoWriter.fourcc(*'mp4v'),
@@ -244,7 +249,6 @@ class ProcessThread(QThread):
             self.__stream_data.frame_size,
             True,
         )
-        print(writer.getBackendName())
         if initial:
             writer.release()
             try:
@@ -329,7 +333,7 @@ class StreamControls(QWidget):
         layout = QHBoxLayout()
         self.__set_video_display_width.setRange(200, 800)
         self.__set_video_display_width.setSingleStep(4)
-        self.__set_video_display_width.setValue(640)
+        self.__set_video_display_width.setValue(self.__stream_data.video_width)
 
         layout.addWidget(Label('Display Size', LabelLevel.H4))
         layout.addWidget(self.__set_video_display_width)
@@ -531,7 +535,7 @@ class StreamWidget(QWidget):
         file_name, _ = QFileDialog.getSaveFileName(
             parent=self,
             caption='Set Output File Name',
-            filter='Videos (*.avi)',
+            filter='Videos (*.mp4)',
         )
         if file_name:
             self.setFileName.emit(file_name)

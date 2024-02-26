@@ -119,7 +119,12 @@ class SIFT(Operation):
     def execute(self, frame: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         kp = self.__sift.detect(gray)
-        frame = cv2.drawKeypoints(frame, kp, frame, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        frame = cv2.drawKeypoints(
+            frame,
+            kp,
+            frame,
+            flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+        )
         return frame
 
 
@@ -198,7 +203,12 @@ class ORB(Operation):
         if self.__nms.status:
             kp = self.ssc(kp, 10, 0.04, frame.shape[1], frame.shape[0])
 
-        frame = cv2.drawKeypoints(frame, kp, frame, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        frame = cv2.drawKeypoints(
+            frame,
+            kp,
+            frame,
+            flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+        )
         if self.__nms.status:
             cv2.putText(
                 img=frame,
