@@ -106,3 +106,53 @@ class BoardDetection(Operation):
         result = np.arccos(dot / mag)
         result = np.nan_to_num(result)
         return np.rad2deg(result)
+
+
+class BoardDetection2(Operation):
+    name = 'Board Detection 2'
+    description = 'Detect Game Board using Contours'
+
+    def __init__(self):
+        super().__init__()
+        self.__median = IntegerEntry(
+            name='Median Filter K Size',
+            min_value=1,
+            max_value=9,
+            step=2,
+            default=5
+        )
+        self.__block_size = IntegerEntry(
+            name='Adaptive Filter Block Size',
+            min_value=1,
+            max_value=21,
+            step=2,
+            default=11,
+        )
+        self.params.append(self.__median)
+        self.params.append(self.__block_size)
+
+    def execute(self, frame: np.ndarray) -> np.ndarray:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.medianBlur(gray, self.__median.number)
+        thresh = cv2.adaptiveThreshold(
+            gray,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            self.__block_size.number,
+            2
+        )
+        contours, hierarchy = cv2.findContours(
+            thresh,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+        for cnt in contours:
+            approx = cv2.approxPolyDP(
+                cnt,
+                0.01 * cv2.arcLength(cnt, True),
+                True
+            )
+            if len(approx) == 4:
+                print('Hello there')
+        return cv2.drawContours(frame, contours, -1, (0, 0, 255), 1)
