@@ -279,11 +279,13 @@ class IntegerEntry(Parameter):
         self.__max_value = max_value
         self.__step = step
         self.__default = default
+        self.__number = self.__min_value
         super().__init__(name)
 
     def create_child(self) -> QWidget:
         component = QWidget(None)
         self.__spinner = CustomSpinBox()
+        self.__spinner.newValue.connect(self.__accept_change)
 
         if self.__min_value is not None:
             self.__spinner.setMinimum(self.__min_value)
@@ -293,6 +295,7 @@ class IntegerEntry(Parameter):
             self.__spinner.setSingleStep(self.__step)
         if self.__default is not None:
             self.__spinner.setValue(self.__default)
+            self.__number = self.__default
 
         l1 = QHBoxLayout()
         l1.addWidget(Label('Enter Value', LabelLevel.P))
@@ -306,7 +309,10 @@ class IntegerEntry(Parameter):
 
     @property
     def number(self) -> int:
-        return self.__spinner.value()
+        return self.__number
+
+    def __accept_change(self, value: int) -> None:
+        self.__number = value
 
 
 class SingleSelect(Parameter):
