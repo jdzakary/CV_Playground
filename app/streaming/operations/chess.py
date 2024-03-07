@@ -1,15 +1,21 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from enum import Enum
+import traceback
 
 import cv2
 import numpy as np
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtWidgets import QDockWidget, QVBoxLayout, QLabel, QWidget, QApplication, QPushButton
 from ultralytics import YOLO
 
-from app.streaming.processing import Operation, NewSlider, IntegerEntry, Boolean
+from app.streaming.processing import Operation, NewSlider, Boolean, ButtonGroup
 
 if TYPE_CHECKING:
     from ultralytics.engine.results import Results
+    from app.base import BaseWindow
 
 
 class ChessRole(Enum):
@@ -90,70 +96,113 @@ class ChessGame:
         pass
 
     def __init__(self):
-        self.__board = np.zeros((8, 8))
-        self.__pieces = {
-            1: ChessPiece(False, ChessRole.Rook, 0, 0, 1),
-            2: ChessPiece(False, ChessRole.Knight, 0, 1, 2),
-            3: ChessPiece(False, ChessRole.Bishop, 0, 2, 3),
-            4: ChessPiece(False, ChessRole.Queen, 0, 3, 4),
-            5: ChessPiece(False, ChessRole.King, 0, 4, 5),
-            6: ChessPiece(False, ChessRole.Bishop, 0, 5, 6),
-            7: ChessPiece(False, ChessRole.Knight, 0, 6, 7),
-            8: ChessPiece(False, ChessRole.Rook, 0, 7, 8),
-            9: ChessPiece(True, ChessRole.Rook, 7, 0, 9),
-            10: ChessPiece(True, ChessRole.Knight, 7, 1, 10),
-            11: ChessPiece(True, ChessRole.Bishop, 7, 2, 11),
-            12: ChessPiece(True, ChessRole.Queen, 7, 3, 12),
-            13: ChessPiece(True, ChessRole.King, 7, 4, 13),
-            14: ChessPiece(True, ChessRole.Bishop, 7, 5, 14),
-            15: ChessPiece(True, ChessRole.Knight, 7, 6, 15),
-            16: ChessPiece(True, ChessRole.Rook, 7, 7, 16),
-        }
-        for i in range(8):
-            self.__pieces[17 + i] = ChessPiece(False, ChessRole.Pawn, 1, i, 17 + i)
-            self.__pieces[25 + i] = ChessPiece(False, ChessRole.Pawn, 6, i, 25 + i)
-        self.__board[0, :] = np.arange(1, 9)
-        self.__board[1, :] = np.arange(17, 25)
-        self.__board[7, :] = np.arange(9, 17)
-        self.__board[6, :] = np.arange(25, 33)
+        back = np.array([
+            ChessRole.Rook.value, ChessRole.Knight.value, ChessRole.Bishop.value, ChessRole.Queen.value,
+            ChessRole.King.value, ChessRole.Bishop.value, ChessRole.Knight.value, ChessRole.Rook.value
+        ], dtype=np.uint8)
+        self.__board = np.zeros((8, 8, 2), dtype=np.uint8)
 
-    def get_occupant(self, row: int, col: int) -> ChessPiece:
-        if (idx := self.__board[row, col]) == 0:
+        # Setup Black Pieces
+        self.__board[0:2, :, 0] = 1
+        self.__board[0, :, 1] = back
+        self.__board[1, :, 1] = 5
+
+        # Setup White Pieces
+        self.__board[6:, :, 0] = 2
+        self.__board[7, :, 1] = back
+        self.__board[6, :, 1] = 5
+        self.__image_board = np.float32(cv2.imread('assets/chess/Board.png'))
+        self.__image_white = {
+            k.value: cv2.imread(
+                f'assets/chess/Piece - White {k.name}.png',
+                cv2.IMREAD_UNCHANGED,
+            ) for k in ChessRole
+        }
+        self.__image_black = {
+            k.value: cv2.imread(
+                f'assets/chess/Piece - Black {k.name}.png',
+                cv2.IMREAD_UNCHANGED,
+            ) for k in ChessRole
+        }
+
+    @property
+    def white_pieces(self) -> int:
+        return np.sum(self.__board[:, :, 0] == 2)
+
+    @property
+    def black_pieces(self) -> int:
+        return np.sum(self.__board[:, :, 0] == 1)
+
+    @property
+    def board_any(self) -> np.ndarray:
+        # noinspection PyTypeChecker
+        return self.__board[:, :, 0] > 0
+
+    @property
+    def board_white(self):
+        return self.__board[:, :, 0] == 2
+
+    @property
+    def board_black(self):
+        return self.__board[:, :, 0] == 1
+
+    def get_occupant(self, row: int, col: int) -> (int, int):
+        item = self.__board[row, col, :]
+        if item[0] == 0:
             raise self.EmptySquare(f'No piece at position ({row}, {col})')
-        return self.__pieces[idx]
+        return item
 
     def is_occupied(self, row: int, col: int) -> bool:
-        return self.__board[row, col] != 0
+        return self.__board[row, col, 0] != 0
 
     def __remove_piece(self, row: int, col: int) -> None:
-        occupant = self.get_occupant(row, col)
-        self.__pieces.pop(occupant.idx)
-        self.__board[row, col] = 0
+        self.__board[row, col, 0] = 0
+        self.__board[row, col, 1] = 0
 
     def move_piece(self, start: (int, int), end: (int, int)) -> None:
-        occupant = self.get_occupant(*start)
+        (player1, role1) = self.get_occupant(*start)
         try:
-            destination = self.get_occupant(*end)
-        except self.EmptySquare:
-            pass
-        else:
-            if destination.white == occupant.white:
+            (player2, role2) = self.get_occupant(*end)
+            if player1 == player2:
                 raise Exception('Cannot capture piece of same color')
             self.__remove_piece(*end)
+        except self.EmptySquare:
+            pass
 
-        occupant.position = end
-        self.__board[end[0], end[1]] = occupant.idx
-        self.__board[start[0], start[1]] = 0
+        self.__remove_piece(*start)
+        self.__board[end[0], end[1], 0] = player1
+        self.__board[end[0], end[1], 1] = role1
+
+    def create_image(self) -> np.ndarray:
+        """
+        Taken from https://stackoverflow.com/questions/40895785/using-opencv-to-overlay-transparent-image-onto-another-image
+        """
+        board = self.__image_board
+        board = cv2.cvtColor(board, cv2.COLOR_BGR2RGB)
+        overlay = np.zeros((board.shape[0], board.shape[1], 4))
+        idx = np.argwhere(self.__board[:, :, 0])
+        for (r, c) in idx:
+            player, role = self.__board[r, c, :]
+            img = self.__image_white[role] if player == 2 else self.__image_black[role]
+            y1 = r * 128
+            y2 = (r + 1) * 128
+            x1 = c * 128
+            x2 = (c + 1) * 128
+            overlay[y1:y2, x1:x2] = img
+        alpha_channel = overlay[:, :, 3] / 255
+        overlay_colors = overlay[:, :, :3]
+        alpha_mask = np.dstack((alpha_channel, alpha_channel, alpha_channel))
+        composite = board * (1 - alpha_mask) + overlay_colors * alpha_mask
+        return np.uint8(composite)
 
 
-class ChessDetection1(Operation):
+class ChessDetection(Operation):
     name = "Chess Game Test"
     description = "Testing Chess Game"
     InitializeInSeparateThread = True
 
     def __init__(self):
         super().__init__()
-        self.__game = ChessGame()
         self.__conf = NewSlider(
             minimum=1,
             maximum=100,
@@ -171,14 +220,25 @@ class ChessDetection1(Operation):
             label_true='Yes',
             label_false='No'
         )
+        self.__buttons = ButtonGroup()
         self.params.append(self.__conf)
         self.params.append(self.__show_grid)
         self.params.append(self.__show_centers)
-        self.__model = YOLO('assets/chess_detection.pt')
-        self.__model.cuda(0)
+        self.params.append(self.__buttons)
+
+        self.__game = ChessGame()
         self.__counter = 0
         self.__grid = {}
         self.__initial = True
+        self.__memory = np.empty((8, 8, 6), dtype=np.str_)
+        self.__rendered_board = np.empty((480, 480), dtype=np.uint8)
+        self.__recording = False
+
+        self.__model = YOLO('assets/chess/chess_detection.pt')
+        self.__model.cuda(0)
+
+        self.child_functions.append(self.create_dock)
+        self.child_functions.append(self.create_buttons)
 
     def execute(self, frame: np.ndarray) -> np.ndarray:
         show_grid = self.__show_grid.status
@@ -195,10 +255,14 @@ class ChessDetection1(Operation):
             conf=self.__conf.number / 100
         )
 
-        if self.__counter > 20:
+        if self.__counter > 5:
             self.__counter = 0
             local = results[0].to('cpu')
-            boxes = self.__finalize_boxes(local)
+            boxes = self.__finalize_boxes(
+                results=local,
+                max_white=self.__game.white_pieces,
+                max_black=self.__game.black_pieces
+            )
             if self.__initial:
                 try:
                     self.__grid.update(self.__initial_board(boxes))
@@ -207,17 +271,39 @@ class ChessDetection1(Operation):
                 except Exception as e:
                     print(e)
             else:
-                self.__compute_locations(boxes)
+                try:
+                    board = self.__compute_locations(boxes)
+                    if self.__check_memory(board):
+                        if self.__process_board(board):
+                            img = self.__game.create_image()
+                            self.__rendered_board = cv2.cvtColor(
+                                cv2.resize(img, (480, 480)),
+                                cv2.COLOR_RGB2BGR
+                            )
+                            self.__dock.update_chess(img)
+                except Exception as e:
+                    print(e)
 
         if show_grid:
             self.__draw_grid(frame)
         if show_centers:
             self.__draw_centers(frame)
 
-        return results[0].plot(conf=False, line_width=1, labels=False)
+        annotated = results[0].plot(conf=False, line_width=1, labels=False)
+        if self.__recording:
+            frm = np.empty((480, 640 + 480, 3), dtype=np.uint8)
+            frm[:, :640, :] = annotated
+            frm[:, 640:, :] = self.__rendered_board
+            self.__writer.write(frm)
+
+        return annotated
 
     @staticmethod
-    def __finalize_boxes(results: Results) -> np.ndarray:
+    def __finalize_boxes(
+        results: Results,
+        max_white: int = 16,
+        max_black: int = 16
+    ) -> np.ndarray:
         boxes = np.array(results.boxes.xywh)
         cls = np.array(results.boxes.cls)
         conf = np.array(results.boxes.conf)
@@ -225,12 +311,12 @@ class ChessDetection1(Operation):
         boxes_black = boxes[cls == 0, :]
         idx_white = np.argsort(conf[cls == 1])[::-1]
         idx_black = np.argsort(conf[cls == 0])[::-1]
-        if len(idx_white) > 16:
-            new_white = boxes_white[idx_white[:16]]
+        if len(idx_white) > max_white:
+            new_white = boxes_white[idx_white[:max_white]]
         else:
             new_white = boxes_white
-        if len(idx_black) > 16:
-            new_black = boxes_black[idx_black[:16]]
+        if len(idx_black) > max_black:
+            new_black = boxes_black[idx_black[:max_black]]
         else:
             new_black = boxes_black
         final = np.zeros((len(new_black) + len(new_white), 5))
@@ -319,175 +405,150 @@ class ChessDetection1(Operation):
         if 'centers' not in self.__grid:
             raise Exception('Centers are not computed')
         grid = self.__grid['centers'].reshape((8, 8, 2, 1))
-        cent = boxes[:, 0:2].reshape((1, 1, 2, boxes.shape[0]))
+
+        cent = boxes[:, 0:2].transpose()
+        cent = cent.reshape((1, 1, 2, boxes.shape[0]))
         dist = np.square(grid - cent).sum(axis=2)
         best = np.min(dist, axis=(0, 1), keepdims=True)
         result = np.equal(dist, best)
-        print(result.shape)
+        locations = result.sum(axis=2)
+        if (locations > 1).sum():
+            raise Exception('Multiple pieces on the same square')
 
+        cls = boxes[:, 4].transpose()
+        cls = cls.reshape((1, 1, boxes.shape[0]))
+        cls = np.repeat(cls, 8, axis=0)
+        cls = np.repeat(cls, 8, axis=1)
+        cls = cls[result]
 
-class BoardDetection(Operation):
-    name = "Board Detection"
-    description = "Compute game board grid"
+        final = np.empty((8, 8), dtype=np.str_)
+        final[:, :] = 'O'
+        cls_str = np.empty(cls.shape, dtype=np.str_)
+        cls_str[cls == 1] = 'W'
+        cls_str[cls == 0] = 'B'
+        final[locations == 1] = cls_str
+        return final
 
-    def __init__(self):
-        super().__init__()
-        self.__max_corners = IntegerEntry(
-            name='Max Corners',
-            min_value=1,
-            max_value=1000,
-            step=5,
-            default=25
+    def __process_board(self, board: np.ndarray) -> bool:
+        ideal_white = self.__game.white_pieces
+        ideal_black = self.__game.black_pieces
+        actual_white = np.sum(board == 'W')
+        actual_black = np.sum(board == 'B')
+
+        # No pieces have left the board
+        if actual_white == ideal_white and actual_black == ideal_black:
+            # Have pieces moved?
+            if np.sum(board[self.__game.board_any] == 'O') == 0:
+                return False
+            start = np.argwhere((board == 'O') & self.__game.board_any)
+            end = np.argwhere((board != 'O') & ~self.__game.board_any)
+            if len(start) == len(end) == 1:
+                self.__game.move_piece(tuple(start[0, :]), tuple(end[0, :]))
+                return True
+            return False
+
+        # A black piece is captured
+        if actual_white == ideal_white and actual_black == ideal_black - 1:
+            # Has white moved?
+            if np.sum((board == 'W') & ~self.__game.board_white) == 0:
+                return False
+            start = np.argwhere((board == 'O') & self.__game.board_any)
+            end = np.argwhere((board == 'W') & self.__game.board_black)
+            self.__game.move_piece(tuple(start[0, :]), tuple(end[0, :]))
+            return True
+
+        # A white piece is captured
+        if actual_black == ideal_black and actual_white == ideal_white - 1:
+            # Has black moved?
+            if np.sum((board == 'B') & ~self.__game.board_black) == 0:
+                return False
+            start = np.argwhere((board == 'O') & self.__game.board_any)
+            end = np.argwhere((board == 'B') & self.__game.board_white)
+            self.__game.move_piece(tuple(start[0, :]), tuple(end[0, :]))
+            return True
+
+        return False
+
+    def __check_memory(self, board: np.ndarray) -> bool:
+        self.__memory[:, :, 1:] = self.__memory[:, :, :-1]
+        self.__memory[:, :, 0] = board
+        return np.all(np.equal(self.__memory, board.reshape((8, 8, 1))))
+
+    def create_dock(self) -> None:
+        app: QApplication = QApplication.instance()
+        window: BaseWindow = [x for x in app.topLevelWidgets() if type(x).__name__ == "BaseWindow"][0]
+        self.__dock = DisplayDock(window)
+        window.addDockWidget(Qt.RightDockWidgetArea, self.__dock)
+        self.__dock.setFloating(True)
+        img = self.__game.create_image()
+        self.__rendered_board = cv2.cvtColor(
+            cv2.resize(img, (480, 480)),
+            cv2.COLOR_RGB2BGR
         )
-        self.__test_point = IntegerEntry(
-            name='Test Point',
-            min_value=1,
-            max_value=25,
-            step=1,
-            default=1
-        )
-        self.params.append(self.__max_corners)
-        self.params.append(self.__test_point)
+        self.__dock.update_chess(img)
+        self.__dock.toggleRecording.connect(self.__toggle_recording)
 
-    def execute(self, frame: np.ndarray) -> np.ndarray:
-        idx = self.__test_point.number
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        corners = cv2.goodFeaturesToTrack(
-            gray,
-            self.__max_corners.number,
-            0.01,
-            20,
-        )
-        vectors = corners - np.swapaxes(corners, 0, 1)
-        angles = self.__compute_angles(vectors)
+    def create_buttons(self) -> None:
+        btn1 = self.__buttons.add_button('Show Chess Board')
+        btn1.clicked.connect(self.__show_dock)
 
-        selected = angles[idx, idx, :, :]
-        ideal = np.abs(selected - 90) < 10
+    def __show_dock(self) -> None:
+        self.__dock.setHidden(False)
 
-        corners = np.intp(corners)
-        for i, data in enumerate(corners):
-            x, y = data.ravel()
-            if i == idx:
-                color = (0, 255, 0)
-            else:
-                color = (0, 0, 255)
-            cv2.circle(
-                frame,
-                (x, y),
-                2,
-                color,
-                -1,
+    def __toggle_recording(self) -> None:
+        old = self.__recording
+        self.__recording = not self.__recording
+        if old:
+            self.__writer.release()
+        else:
+            # TODO: Fix this to use actual frame rate and frame size
+            self.__writer = cv2.VideoWriter(
+                self.__dock.file_name,
+                cv2.VideoWriter.fourcc(*'mp4v'),
+                30,
+                (640 + 480, 480),
+                True,
             )
-        return frame
-
-    @staticmethod
-    def __compute_angles(vectors: np.ndarray) -> np.ndarray:
-        size = vectors.shape[0]
-        mag = np.sqrt(np.sum(np.square(vectors), axis=2))
-        mag = mag * mag.T
-        dot = np.outer(vectors[:, :, 0], vectors[:, :, 0]) + np.outer(vectors[:, :, 1], vectors[:, :, 1])
-        dot = dot.reshape((size, size, size, size))
-        result = np.arccos(dot / mag)
-        result = np.nan_to_num(result)
-        return np.rad2deg(result)
 
 
-class BoardDetection2(Operation):
-    name = 'Board Detection 2'
-    description = 'Detect Game Board using Contours'
+class DisplayDock(QDockWidget):
+    toggleRecording = pyqtSignal(name='toggleRecording')
 
-    def __init__(self):
-        super().__init__()
-        self.__median = IntegerEntry(
-            name='Median Filter K Size',
-            min_value=1,
-            max_value=25,
-            step=2,
-            default=5
-        )
-        self.__block_size = IntegerEntry(
-            name='Adaptive Filter Block Size',
-            min_value=3,
-            max_value=81,
-            step=2,
-            default=11,
-        )
-        self.__deviation = NewSlider(
-            name='Median Area Filter',
-            minimum=0.01,
-            maximum=0.25,
-            step=0.01,
-            default=0.05,
-            label_precision=2,
-        )
-        self.params.append(self.__median)
-        self.params.append(self.__block_size)
-        self.params.append(self.__deviation)
+    def __init__(self, parent):
+        super().__init__("View Chess Game", parent)
+        self.__recording = False
+        self.__file_name = 'chess_game.mp4'
 
-    def execute(self, frame: np.ndarray) -> np.ndarray:
-        median = self.__median.number
-        block_size = self.__block_size.number
-        deviation = self.__deviation.number
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.medianBlur(gray, median)
-        thresh = cv2.adaptiveThreshold(
-            gray,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            block_size,
-            2
-        )
-        contours, hierarchy = cv2.findContours(
-            thresh,
-            cv2.RETR_LIST,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
-        no_noise = [(x, area) for x in contours if (area := cv2.contourArea(x)) > 30]
-        accepted_area = []
-        accepted_rect = []
-        for (cont, area) in no_noise:
-            epsilon = 0.025 * cv2.arcLength(cont, True)
-            approx = cv2.approxPolyDP(cont, epsilon, True)
-            if len(approx) != 4:
-                continue
-            center, size, angle = cv2.minAreaRect(cont)
-            ratio = size[0] / size[1]
-            if 0.85 < ratio < 1.15:
-                accepted_area.append(area)
-                accepted_rect.append(cv2.RotatedRect(center, size, angle))
+        content = QWidget(self)
+        layout = QVBoxLayout()
 
-        median_area = np.median(accepted_area)
-        final: list[cv2.RotatedRect] = []
-        for (area, rect) in zip(accepted_area, accepted_rect):
-            if median_area * 0.65 < area < median_area * 1.5:
-                final.append(rect)
-        side = np.mean([(x.size[0] + x.size[1]) / 2 for x in final])
-        if len(final):
-            self.__draw_grid(final[0].center, side, 0, frame)
-        return frame
+        self.__image = QLabel()
+        self.__save_video = QPushButton("Start Recording")
+        self.__save_video.clicked.connect(self.__toggle_recording)
 
-    @staticmethod
-    def __draw_grid(center: (float, float), side: float, angle: float, frame: np.ndarray):
-        start = (center[0] - side / 2, center[1] - side / 2)
-        anchor_x = start[0] - side * ((start[0] + 50) // side)
-        anchor_y = start[1] - side * ((start[1] + 50) // side)
-        x_start = np.arange(anchor_x, 800, side)
-        y_start = np.arange(anchor_y, 800, side)
-        cv2.circle(frame, np.intp(center), 3, (0, 255, 0), -1)
-        for x in x_start:
-            cv2.line(
-                frame,
-                np.intp([x, anchor_y]),
-                np.intp([x, anchor_y + 800]),
-                (0, 0, 255),
-                1
-            )
-        for y in y_start:
-            cv2.line(
-                frame,
-                np.intp([anchor_x, y]),
-                np.intp([anchor_x + 800, y]),
-                (0, 0, 255),
-                1
-            )
+        layout.addWidget(self.__save_video)
+        layout.addWidget(self.__image)
+
+        content.setLayout(layout)
+        self.setWidget(content)
+
+    @property
+    def file_name(self) -> str:
+        return self.__file_name
+
+    def update_chess(self, image: np.ndarray) -> None:
+        # noinspection DuplicatedCode
+        h, w, ch = image.shape
+        bytes_per_line = ch * w
+        image = QImage(image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        pixmap = QPixmap()
+        pixmap: QPixmap = pixmap.fromImage(image, Qt.AutoColor)
+        ratio = self.parent().devicePixelRatio()
+        pixmap = pixmap.scaledToWidth(int(500 * ratio))
+        pixmap.setDevicePixelRatio(ratio)
+        self.__image.setPixmap(pixmap)
+
+    def __toggle_recording(self) -> None:
+        self.__save_video.setText(f'{"Start" if self.__recording else "Stop"} Recording')
+        self.__recording = not self.__recording
+        self.toggleRecording.emit()

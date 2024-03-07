@@ -6,7 +6,8 @@ from typing import Callable
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout, QSpinBox
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout, QSpinBox, \
+    QPushButton
 
 from app.config import setting
 from app.general.enums import LabelLevel
@@ -361,3 +362,22 @@ class SingleSelect(Parameter):
         i: QRadioButton
         for i in self.__group.buttons():
             i.setFont(font)
+
+
+class ButtonGroup(Parameter):
+    def __init__(
+        self,
+        name: str = 'Action Items'
+    ):
+        super().__init__(name)
+
+    def create_child(self) -> QWidget:
+        self.__layout = FlowLayout(None)
+        component = QWidget(None)
+        component.setLayout(self.__layout)
+        return component
+
+    def add_button(self, label: str) -> QPushButton:
+        button = QPushButton(label)
+        self.__layout.addWidget(button)
+        return button
