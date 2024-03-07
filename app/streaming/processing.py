@@ -6,7 +6,8 @@ from typing import Callable
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout, QSpinBox
+from PyQt5.QtWidgets import QSlider, QWidget, QHBoxLayout, QButtonGroup, QRadioButton, QVBoxLayout, QSpinBox, \
+    QPushButton
 
 from app.config import setting
 from app.general.enums import LabelLevel
@@ -279,11 +280,13 @@ class IntegerEntry(Parameter):
         self.__max_value = max_value
         self.__step = step
         self.__default = default
+        self.__number = self.__min_value
         super().__init__(name)
 
     def create_child(self) -> QWidget:
         component = QWidget(None)
         self.__spinner = CustomSpinBox()
+        self.__spinner.newValue.connect(self.__accept_change)
 
         if self.__min_value is not None:
             self.__spinner.setMinimum(self.__min_value)
@@ -293,6 +296,7 @@ class IntegerEntry(Parameter):
             self.__spinner.setSingleStep(self.__step)
         if self.__default is not None:
             self.__spinner.setValue(self.__default)
+            self.__number = self.__default
 
         l1 = QHBoxLayout()
         l1.addWidget(Label('Enter Value', LabelLevel.P))
@@ -306,7 +310,10 @@ class IntegerEntry(Parameter):
 
     @property
     def number(self) -> int:
-        return self.__spinner.value()
+        return self.__number
+
+    def __accept_change(self, value: int) -> None:
+        self.__number = value
 
 
 class SingleSelect(Parameter):
@@ -355,3 +362,22 @@ class SingleSelect(Parameter):
         i: QRadioButton
         for i in self.__group.buttons():
             i.setFont(font)
+
+
+class ButtonGroup(Parameter):
+    def __init__(
+        self,
+        name: str = 'Action Items'
+    ):
+        super().__init__(name)
+
+    def create_child(self) -> QWidget:
+        self.__layout = FlowLayout(None)
+        component = QWidget(None)
+        component.setLayout(self.__layout)
+        return component
+
+    def add_button(self, label: str) -> QPushButton:
+        button = QPushButton(label)
+        self.__layout.addWidget(button)
+        return button

@@ -266,7 +266,7 @@ class ORB(Operation):
             result = []
 
             for i in range(len(key_points)):
-                row = int(math.floor(key_points[i].pt[1] / c))  # get position of the cell current point is located at
+                row = int(math.floor(key_points[i].pt[1] / c))  # get new_position of the cell current point is located at
                 col = int(math.floor(key_points[i].pt[0] / c))
                 if not covered_vec[row][col]:  # if the cell is not covered
                     result.append(i)
