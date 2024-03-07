@@ -17,7 +17,7 @@ class BaseWindow(QMainWindow):
         self.__central_widget = CentralWidget(self)
         self.__menu_bar = self.__create_menu()
         self.__manage_ops = ManageOperators(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.manage_ops)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.manage_ops)
 
         # Window Setup
         self.setWindowTitle(title)
